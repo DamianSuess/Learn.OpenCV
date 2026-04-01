@@ -45,7 +45,7 @@ namespace VisionLedTest
       _btnStart.TabIndex = 0;
       _btnStart.Text = "Start";
       _btnStart.UseVisualStyleBackColor = true;
-      _btnStart.Click += _btnStart_Click;
+      _btnStart.Click += BtnStart_Click;
       // 
       // _btnStop
       // 
@@ -55,7 +55,7 @@ namespace VisionLedTest
       _btnStop.TabIndex = 1;
       _btnStop.Text = "Stop";
       _btnStop.UseVisualStyleBackColor = true;
-      _btnStop.Click += _btnStop_Click;
+      _btnStop.Click += BtnStop_Click;
       // 
       // _preview
       // 

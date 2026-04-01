@@ -15,7 +15,25 @@ public partial class Form1 : Form
   private CancellationTokenSource? _cts;
   private Task? _captureTask;
 
+  #region ROI Selection / Mapping
+
+  private readonly object _roiLock = new();
   private Rect _roi = new Rect(X: 100, Y: 100, Width: 500, Height: 350);
+
+  private bool _dragging = false;
+
+  /// <summary>Client coords in PictureBox.</summary>
+  private System.Drawing.Point _dragStartClient;
+
+  /// <summary>Client coordinates (for overlay drawing).</summary>
+  private Rectangle _dragRectClient;
+
+  #endregion ROI Selection / Mapping
+
+  // Store latest frame size for accurate mapping from PictureBox -> image coords
+  private int _lastFrameWidth = 0;
+
+  private int _lastFrameHeight = 0;
 
   #region Detection Knobs
 
@@ -48,18 +66,84 @@ public partial class Form1 : Form
 
     _preview.SizeMode = PictureBoxSizeMode.Zoom;
     _preview.BackColor = System.Drawing.Color.Black;
+    _preview.MouseDown += Preview_MouseDown;
+    _preview.MouseMove += PreviewMouseMove;
+    _preview.MouseUp += Preview_MouseUp;
+    _preview.Paint += Preview_Paint;
+
+    // UX: Cursor indicates selection mode
+    _preview.Cursor = Cursors.Cross;
 
     FormClosing += async (_, __) => await StopAsync();
   }
 
-  private async void _btnStart_Click(object sender, EventArgs e)
+  private async void BtnStart_Click(object sender, EventArgs e)
   {
     await StartAsync();
   }
 
-  private async void _btnStop_Click(object sender, EventArgs e)
+  private async void BtnStop_Click(object sender, EventArgs e)
   {
     await StopAsync();
+  }
+
+  private void Preview_Paint(object? sender, PaintEventArgs e)
+  {
+    // Draw the in-progress selection rectangle in client coordinates.
+    if (_dragging && _dragRectClient.Width > 0 && _dragRectClient.Height > 0)
+    {
+      using var pen = new Pen(Color.Lime, 2);
+      e.Graphics.DrawRectangle(pen, _dragRectClient);
+
+      using var brush = new SolidBrush(Color.FromArgb(40, Color.Lime));
+      e.Graphics.FillRectangle(brush, _dragRectClient);
+    }
+  }
+
+  private void Preview_MouseUp(object? sender, MouseEventArgs e)
+  {
+    if (!_dragging || e.Button != MouseButtons.Left) return;
+    _dragging = false;
+
+    _dragRectClient = MakeNormalizedRect(_dragStartClient, e.Location);
+
+    // Convert dragged client rectangle -> image/frame rectangle
+    var imgRect = ClientRectToImageRect(_dragRectClient);
+    if (imgRect.HasValue && imgRect.Value.Width > 5 && imgRect.Value.Height > 5)
+    {
+      // Set new ROI (thread-safe)
+      lock (_roiLock)
+      {
+        _roi = imgRect.Value;
+      }
+    }
+
+    _dragRectClient = Rectangle.Empty;
+    _preview.Invalidate();
+  }
+
+  private void PreviewMouseMove(object? sender, MouseEventArgs e)
+  {
+    if (!_dragging)
+      return;
+
+    _dragRectClient = MakeNormalizedRect(_dragStartClient, e.Location);
+    _preview.Invalidate();
+  }
+
+  private void Preview_MouseDown(object? sender, MouseEventArgs e)
+  {
+    if (e.Button != MouseButtons.Left)
+      return;
+
+    // No frame yet
+    if (_lastFrameWidth <= 0 || _lastFrameHeight <= 0)
+      return;
+
+    _dragging = true;
+    _dragStartClient = e.Location;
+    _dragRectClient = new Rectangle(e.Location, new System.Drawing.Size(0, 0));
+    _preview.Invalidate(); // Force redraw of surface
   }
 
   private async Task StartAsync()
@@ -119,6 +203,11 @@ public partial class Form1 : Form
 
       _btnStart.Enabled = true;
       _btnStop.Enabled = false;
+
+      // Clear any drag overlay
+      _dragging = false;
+      _dragRectClient = Rectangle.Empty;
+      _preview.Invalidate();
     }
   }
 
@@ -133,6 +222,15 @@ public partial class Form1 : Form
     {
       if (!_capture.Read(frame) || frame.Empty())
         continue;
+
+      // Update frame size for mapping ROI selections
+      _lastFrameWidth = frame.Width;
+      _lastFrameHeight = frame.Height;
+
+      // Read ROI thread-safely and clamp to frame
+      Rect roi;
+      lock (_roiLock)
+        roi = _roi;
 
       // Clamp ROI to the frame's Bounds
       var safeRoi = ClampRectToFrame(_roi, frame.Width, frame.Height);
@@ -186,7 +284,7 @@ public partial class Form1 : Form
 
     // Find blobs
     Cv2.FindContours(closed, out OpenCvSharp.Point[][] contours, out _,
-        RetrievalModes.External, ContourApproximationModes.ApproxSimple);
+      RetrievalModes.External, ContourApproximationModes.ApproxSimple);
 
     var rects = new List<Rect>();
 
@@ -198,14 +296,14 @@ public partial class Form1 : Form
 
       var r = Cv2.BoundingRect(c);
 
-      // Optional: reject overly skinny shapes (glare streaks)
+      // Optional:
+      // Reject overly skinny shapes (glare streaks)
       double aspect = r.Width / (double)Math.Max(1, r.Height);
       if (aspect < 0.2 || aspect > 5.0)
         continue;
 
       // Convert ROI-local rect to full-frame coordinates
       var rf = new Rect(r.X + roi.X, r.Y + roi.Y, r.Width, r.Height);
-
       rects.Add(rf);
     }
 
@@ -220,26 +318,30 @@ public partial class Form1 : Form
 
     // LED boxes in green
     foreach (var r in ledRects)
-    {
       Cv2.Rectangle(frame, r, new Scalar(0, 255, 0), 2);
-    }
 
     // Status text
     string status = $"LEDs ON: {ledCount}  Thr={_brightThreshold}  MinArea={_minBlobArea}";
     Cv2.PutText(frame, status, new OpenCvSharp.Point(10, 30),
-        HersheyFonts.HersheySimplex, 0.8, new Scalar(255, 255, 255), 2);
+      HersheyFonts.HersheySimplex, 0.8, new Scalar(255, 255, 255), 2);
+
+    // Helpful hint text
+    Cv2.PutText(frame, "Drag on the preview to set ROI", new OpenCvSharp.Point(10, 60),
+      HersheyFonts.HersheySimplex, 0.7, new Scalar(200, 200, 200), 2);
   }
 
   private void LogStateTransitions(int ledCount)
   {
+    // TODO: Use Enum
     int state = ledCount switch
     {
-      0 => 0,
-      1 => 1,
-      _ => 2
+      0 => 0, // One LED
+      1 => 1, // Multiple LEDs
+      _ => 2, // None detected
     };
 
-    if (state == _lastState) return;
+    if (state == _lastState)
+      return;
 
     string ts = DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss.fff zzz");
 
@@ -278,12 +380,99 @@ public partial class Form1 : Form
     old?.Dispose();
   }
 
+  private static Rectangle MakeNormalizedRect(System.Drawing.Point a, System.Drawing.Point b)
+  {
+    int x1 = Math.Min(a.X, b.X);
+    int y1 = Math.Min(a.Y, b.Y);
+    int x2 = Math.Max(a.X, b.X);
+    int y2 = Math.Max(a.Y, b.Y);
+    return new Rectangle(x1, y1, x2 - x1, y2 - y1);
+  }
+
   private static Rect ClampRectToFrame(Rect r, int frameWidth, int frameHeight)
   {
     int x = Math.Max(0, r.X);
     int y = Math.Max(0, r.Y);
     int w = Math.Min(r.Width, frameWidth - x);
     int h = Math.Min(r.Height, frameHeight - y);
-    return new Rect(x, y, w, h);
+    ////return new Rect(x, y, w, h);
+    return new Rect(x, y, Math.Max(0, w), Math.Max(0, h));
+  }
+
+  /// <summary>
+  ///   Converts a PictureBox client rectangle (mouse drag) into an OpenCvSharp Rect in image pixels.
+  ///   Returns null if selection is outside the displayed image area.
+  /// </summary>
+  ////  private Rect? ClientRectToImageRect(Rect clientRect)
+  private Rect? ClientRectToImageRect(Rectangle clientRect)
+  {
+    var imgDisp = GetImageDisplayRect();
+    if (imgDisp == Rectangle.Empty)
+      return null;
+
+    // Convert OpenCV Rect to System.Drawing.Rectangle
+    ////Rectangle sysRect = new()
+    ////{
+    ////  X = clientRect.X,
+    ////  Y = clientRect.Y,
+    ////  Width = imgDisp.Width,
+    ////  Height = imgDisp.Height,
+    ////};
+
+    // Intersect with displayed image area so dragging into black bars doesn't break mapping
+    var sel = Rectangle.Intersect(clientRect, imgDisp);
+    if (sel.Width <= 0 || sel.Height <= 0)
+      return null;
+
+    // Map client -> image pixels
+    float scaleX = _lastFrameWidth / (float)imgDisp.Width;
+    float scaleY = _lastFrameHeight / (float)imgDisp.Height;
+
+    int x = (int)((sel.X - imgDisp.X) * scaleX);
+    int y = (int)((sel.Y - imgDisp.Y) * scaleY);
+    int w = (int)(sel.Width * scaleX);
+    int h = (int)(sel.Height * scaleY);
+
+    // Clamp to image bounds
+    var r = new Rect(x, y, w, h);
+    return ClampRectToFrame(r, _lastFrameWidth, _lastFrameHeight);
+  }
+
+  /// <summary>
+  /// For PictureBoxSizeMode.Zoom: returns the rectangle inside the PictureBox where the image actually appears.
+  /// This accounts for letterboxing bars.
+  /// </summary>
+  private Rectangle GetImageDisplayRect()
+  {
+    int pbW = _preview.ClientSize.Width;
+    int pbH = _preview.ClientSize.Height;
+
+    int imgW = _lastFrameWidth;
+    int imgH = _lastFrameHeight;
+
+    if (pbW <= 0 || pbH <= 0 || imgW <= 0 || imgH <= 0)
+      return Rectangle.Empty;
+
+    float pbAspect = pbW / (float)pbH;
+    float imgAspect = imgW / (float)imgH;
+
+    int drawW, drawH;
+    if (imgAspect > pbAspect)
+    {
+      // Image limited by width
+      drawW = pbW;
+      drawH = (int)(pbW / imgAspect);
+    }
+    else
+    {
+      // Image limited by height
+      drawH = pbH;
+      drawW = (int)(pbH * imgAspect);
+    }
+
+    int offsetX = (pbW - drawW) / 2;
+    int offsetY = (pbH - drawH) / 2;
+
+    return new Rectangle(offsetX, offsetY, drawW, drawH);
   }
 }
