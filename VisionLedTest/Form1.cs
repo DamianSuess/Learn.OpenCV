@@ -1,11 +1,13 @@
-using OpenCvSharp;
-using OpenCvSharp.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Text;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using OpenCvSharp;
+using OpenCvSharp.Extensions;
 
 namespace VisionLedTest;
 
@@ -51,6 +53,9 @@ public partial class Form1 : Form
 
   #endregion Detection Knobs
 
+  private string? _imageFileName = null;
+  private List<System.Drawing.Point> _ledPositions = [];
+
   private int _lastState = -1;
 
   private enum StateMachine
@@ -75,16 +80,177 @@ public partial class Form1 : Form
     _preview.Cursor = Cursors.Cross;
 
     FormClosing += async (_, __) => await StopAsync();
+    numBrightnessThreshold.Value = _brightThreshold;
+  }
+
+  private void Form1_Load(object sender, EventArgs e)
+  {
+  }
+
+  private void numBrightnessThreshold_ValueChanged(object sender, EventArgs e)
+  {
+    _brightThreshold = (int)numBrightnessThreshold.Value;
+
+    // Auto refresh loaded template
+    if (_imageFileName is not null)
+      btnRefresh_Click(sender, e);
   }
 
   private async void BtnStart_Click(object sender, EventArgs e)
   {
+    _imageFileName = null;
     await StartAsync();
   }
 
   private async void BtnStop_Click(object sender, EventArgs e)
   {
+    _imageFileName = null;
+
     await StopAsync();
+  }
+
+  private void BtnLoadTemplate_Click(object sender, EventArgs e)
+  {
+    using var ofd = new OpenFileDialog
+    {
+      Filter = "Images (*.png;*.jpg)|*.png;*.jpg|PNG Images (*.png)|*.png|JPEG Images (*.jpg)|*.jpg|All Files|*",
+    };
+
+    if (ofd.ShowDialog() != DialogResult.OK)
+      return;
+
+    var templatePath = ofd.FileName;
+    try
+    {
+
+      using var gray = Cv2.ImRead(templatePath, ImreadModes.Grayscale);
+      if (gray.Empty())
+      {
+        MessageBox.Show("Failed to load image");
+        return;
+      }
+
+      _imageFileName = templatePath;
+      AnalyzeStaticImage(gray);
+    }
+    catch (Exception ex)
+    {
+      var nl = Environment.NewLine;
+      MessageBox.Show($"Failure processing!{nl}Message: {ex.Message}{nl}Source: {ex.Source}");
+    }
+  }
+
+  private void btnRefresh_Click(object sender, EventArgs e)
+  {
+    if (_imageFileName is null) 
+    {
+      MessageBox.Show("No template loaded");
+      return;
+    }
+
+    using var gray = Cv2.ImRead(_imageFileName, ImreadModes.Grayscale);
+    if (gray.Empty())
+      return;
+
+    AnalyzeStaticImage(gray);
+  }
+
+  private void AnalyzeStaticImage(Mat? gray)
+  {
+    try
+    {
+      // Show quick grayscale preview with threshold applied (for user feedback/tuning) - this is optional and can be removed
+      if (1 == 2)
+      {
+        var src = Cv2.ImRead(_imageFileName, ImreadModes.Grayscale);
+        Rect roi = new()
+        {
+          X = 0,
+          Y = 0,
+          Width = src.Width,
+          Height = src.Height,
+        };
+
+        // Threshold to find bright mark
+        Cv2.Threshold(src, src, 200, 255, ThresholdTypes.Binary);
+
+        UpdatePreview(src);
+      }
+
+      double thresh = (double)numBrightnessThreshold.Value;
+
+      // Create a binary mask (don't mutate gray in-place)
+      using var binary = new Mat();
+      Cv2.Threshold(gray, binary, thresh, 255, ThresholdTypes.Binary);
+
+      // Morphology to clean up small noise
+      using var kernel = Cv2.GetStructuringElement(MorphShapes.Ellipse, new OpenCvSharp.Size(3, 3));
+      Cv2.MorphologyEx(binary, binary, MorphTypes.Open, kernel);
+
+      // Try contours first (fast + common)
+      Cv2.FindContours(binary, out OpenCvSharp.Point[][] contours, out HierarchyIndex[] _,
+          RetrievalModes.External, ContourApproximationModes.ApproxSimple);
+
+      var centers = new List<System.Drawing.Point>();
+
+      foreach (var cnt in contours)
+      {
+        var m = Cv2.Moments(cnt);
+        if (Math.Abs(m.M00) < double.Epsilon) continue;
+
+        int cx = (int)(m.M10 / m.M00);
+        int cy = (int)(m.M01 / m.M00);
+        centers.Add(new System.Drawing.Point(cx, cy));
+      }
+
+      // If contours found nothing, fall back to ConnectedComponentsWithStats
+      if (centers.Count == 0)
+      {
+        // ConnectedComponentsWithStats requires CV_8UC1; binary is already that from Threshold
+        using var labels = new Mat();
+        using var stats = new Mat();
+        using var centroids = new Mat();
+
+        int nLabels = Cv2.ConnectedComponentsWithStats(
+            binary,
+            labels,
+            stats,
+            centroids,
+            PixelConnectivity.Connectivity8,
+            MatType.CV_32S);
+
+        // label 0 is background, start at 1
+        for (int i = 1; i < nLabels; i++)
+        {
+          int area = stats.At<int>(i, (int)ConnectedComponentsTypes.Area);
+          if (area < 3) continue; // filter tiny specks; tune this
+
+          // Centroids is CV_64F with 2 columns (x,y)
+          double cx = centroids.At<double>(i, 0);
+          double cy = centroids.At<double>(i, 1);
+
+          centers.Add(new System.Drawing.Point((int)Math.Round(cx), (int)Math.Round(cy)));
+        }
+      }
+
+      // Optional: sort left-to-right then top-to-bottom for stable ordering
+      centers = centers
+        .OrderBy(p => p.Y)
+        .ThenBy(p => p.X)
+        .ToList();
+
+      // Show me what you go baby!
+      UpdatePreview(binary);
+
+      _ledPositions = centers;
+
+      lblStatus.Text = $"Template loaded: {System.IO.Path.GetFileName(_imageFileName)}; LEDs found: {_ledPositions.Count}";
+    }
+    catch (Exception ex)
+    {
+      var nl = Environment.NewLine;
+      MessageBox.Show($"Failure processing!{nl}Message: {ex.Message}{nl}Source: {ex.Source}");
+    }
   }
 
   private void Preview_Paint(object? sender, PaintEventArgs e)
