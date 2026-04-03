@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Drawing.Text;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -81,19 +80,11 @@ public partial class Form1 : Form
 
     FormClosing += async (_, __) => await StopAsync();
     numBrightnessThreshold.Value = _brightThreshold;
+    ThresholdHScroll.Value = _brightThreshold;
   }
 
   private void Form1_Load(object sender, EventArgs e)
   {
-  }
-
-  private void numBrightnessThreshold_ValueChanged(object sender, EventArgs e)
-  {
-    _brightThreshold = (int)numBrightnessThreshold.Value;
-
-    // Auto refresh loaded template
-    if (_imageFileName is not null)
-      btnRefresh_Click(sender, e);
   }
 
   private async void BtnStart_Click(object sender, EventArgs e)
@@ -122,7 +113,6 @@ public partial class Form1 : Form
     var templatePath = ofd.FileName;
     try
     {
-
       using var gray = Cv2.ImRead(templatePath, ImreadModes.Grayscale);
       if (gray.Empty())
       {
@@ -131,7 +121,8 @@ public partial class Form1 : Form
       }
 
       _imageFileName = templatePath;
-      AnalyzeStaticImage(gray);
+      ////AnalyzeStaticImage(gray);
+      AnalyzeFrame(gray);
     }
     catch (Exception ex)
     {
@@ -142,17 +133,48 @@ public partial class Form1 : Form
 
   private void btnRefresh_Click(object sender, EventArgs e)
   {
-    if (_imageFileName is null) 
+    if (_imageFileName is null)
     {
       MessageBox.Show("No template loaded");
       return;
     }
 
-    using var gray = Cv2.ImRead(_imageFileName, ImreadModes.Grayscale);
-    if (gray.Empty())
+    using var grayMat = Cv2.ImRead(_imageFileName, ImreadModes.Grayscale);
+    if (grayMat.Empty())
       return;
 
-    AnalyzeStaticImage(gray);
+    AnalyzeStaticImage(grayMat);
+  }
+
+  private void AnalyzeFrame(Mat frame)
+  {
+    // Update frame size for mapping ROI selections
+    _lastFrameWidth = frame.Width;
+    _lastFrameHeight = frame.Height;
+
+    // Read ROI thread-safely and clamp to frame
+    Rect roi;
+    lock (_roiLock)
+      roi = _roi;
+
+    // Clamp ROI to the frame's Bounds
+    var safeRoi = ClampRectToFrame(_roi, frame.Width, frame.Height);
+
+    // Fallback region of interest
+    if (safeRoi.Width <= 0 || safeRoi.Height <= 0)
+      safeRoi = new Rect(0, 0, frame.Width, frame.Height);
+
+    // Process ROI and detect LED rectangles
+    var ledRects = DetectLedRects(frame, safeRoi, out int ledCount);
+
+    // Log state transitions only
+    LogStateTransitions(ledCount);
+
+    // Draw overlays: ROI + LED rectangles
+    DrawOverlay(frame, safeRoi, ledRects, ledCount);
+
+    // Push to UI (PictureBox)
+    UpdatePreview(frame);
   }
 
   private void AnalyzeStaticImage(Mat? gray)
@@ -241,6 +263,9 @@ public partial class Form1 : Form
 
       // Show me what you go baby!
       UpdatePreview(binary);
+
+      // Draw overlays: ROI + LED rectangles
+      ////DrawOverlay(binary, safeRoi, ledRects, ledCount);
 
       _ledPositions = centers;
 
@@ -389,33 +414,7 @@ public partial class Form1 : Form
       if (!_capture.Read(frame) || frame.Empty())
         continue;
 
-      // Update frame size for mapping ROI selections
-      _lastFrameWidth = frame.Width;
-      _lastFrameHeight = frame.Height;
-
-      // Read ROI thread-safely and clamp to frame
-      Rect roi;
-      lock (_roiLock)
-        roi = _roi;
-
-      // Clamp ROI to the frame's Bounds
-      var safeRoi = ClampRectToFrame(_roi, frame.Width, frame.Height);
-
-      // Fallback region of interest
-      if (safeRoi.Width <= 0 || safeRoi.Height <= 0)
-        safeRoi = new Rect(0, 0, frame.Width, frame.Height);
-
-      // Process ROI and detect LED rectangles
-      var ledRects = DetectLedRects(frame, safeRoi, out int ledCount);
-
-      // Log state transitions only
-      LogStateTransitions(ledCount);
-
-      // Draw overlays: ROI + LED rectangles
-      DrawOverlay(frame, safeRoi, ledRects, ledCount);
-
-      // Push to UI (PictureBox)
-      UpdatePreview(frame);
+      AnalyzeFrame(frame);
 
       // Small delay to reduce CPU (tune as desired)
       Thread.Sleep(5);
@@ -640,5 +639,30 @@ public partial class Form1 : Form
     int offsetY = (pbH - drawH) / 2;
 
     return new Rectangle(offsetX, offsetY, drawW, drawH);
+  }
+
+  private void ThresholdHScroll_Scroll(object sender, ScrollEventArgs e)
+  {
+    _brightThreshold = ThresholdHScroll.Value;
+    numBrightnessThreshold.Value = _brightThreshold;
+  }
+
+  private void numBrightnessThreshold_ValueChanged(object sender, EventArgs e)
+  {
+    _brightThreshold = (int)numBrightnessThreshold.Value;
+
+    // Auto refresh loaded template
+    if (_imageFileName is not null)
+      btnRefresh_Click(sender, e);
+  }
+
+  private void numBlobMax_ValueChanged(object sender, EventArgs e)
+  {
+    _maxBlobArea = (int)numBlobMax.Value;
+  }
+
+  private void numBlobMin_ValueChanged(object sender, EventArgs e)
+  {
+    _minBlobArea = (int)numBlobMin.Value;
   }
 }

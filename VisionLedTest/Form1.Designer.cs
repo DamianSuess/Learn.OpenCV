@@ -40,8 +40,15 @@ namespace VisionLedTest
       lblStatus = new Label();
       numBrightnessThreshold = new NumericUpDown();
       btnRefresh = new Button();
+      ThresholdHScroll = new HScrollBar();
+      label2 = new Label();
+      label3 = new Label();
+      numBlobMin = new NumericUpDown();
+      numBlobMax = new NumericUpDown();
       ((System.ComponentModel.ISupportInitialize)_preview).BeginInit();
       ((System.ComponentModel.ISupportInitialize)numBrightnessThreshold).BeginInit();
+      ((System.ComponentModel.ISupportInitialize)numBlobMin).BeginInit();
+      ((System.ComponentModel.ISupportInitialize)numBlobMax).BeginInit();
       SuspendLayout();
       // 
       // _btnStart
@@ -104,7 +111,7 @@ namespace VisionLedTest
       // lblStatus
       // 
       lblStatus.AutoSize = true;
-      lblStatus.Location = new Point(367, 16);
+      lblStatus.Location = new Point(348, 16);
       lblStatus.Name = "lblStatus";
       lblStatus.Size = new Size(35, 15);
       lblStatus.TabIndex = 6;
@@ -112,29 +119,81 @@ namespace VisionLedTest
       // 
       // numBrightnessThreshold
       // 
-      numBrightnessThreshold.Location = new Point(13, 38);
+      numBrightnessThreshold.Location = new Point(165, 41);
       numBrightnessThreshold.Maximum = new decimal(new int[] { 255, 0, 0, 0 });
       numBrightnessThreshold.Name = "numBrightnessThreshold";
-      numBrightnessThreshold.Size = new Size(120, 23);
+      numBrightnessThreshold.Size = new Size(53, 23);
       numBrightnessThreshold.TabIndex = 7;
       numBrightnessThreshold.Value = new decimal(new int[] { 250, 0, 0, 0 });
       numBrightnessThreshold.ValueChanged += numBrightnessThreshold_ValueChanged;
       // 
       // btnRefresh
       // 
-      btnRefresh.Location = new Point(139, 38);
+      btnRefresh.Location = new Point(224, 41);
       btnRefresh.Name = "btnRefresh";
-      btnRefresh.Size = new Size(75, 23);
+      btnRefresh.Size = new Size(76, 23);
       btnRefresh.TabIndex = 8;
       btnRefresh.Text = "Refresh";
       btnRefresh.UseVisualStyleBackColor = true;
       btnRefresh.Click += btnRefresh_Click;
+      // 
+      // ThresholdHScroll
+      // 
+      ThresholdHScroll.Location = new Point(62, 38);
+      ThresholdHScroll.Maximum = 255;
+      ThresholdHScroll.Name = "ThresholdHScroll";
+      ThresholdHScroll.Size = new Size(100, 23);
+      ThresholdHScroll.TabIndex = 9;
+      ThresholdHScroll.Scroll += ThresholdHScroll_Scroll;
+      // 
+      // label2
+      // 
+      label2.AutoSize = true;
+      label2.Location = new Point(13, 40);
+      label2.Name = "label2";
+      label2.Size = new Size(46, 15);
+      label2.TabIndex = 10;
+      label2.Text = "Thresh:";
+      // 
+      // label3
+      // 
+      label3.AutoSize = true;
+      label3.Location = new Point(306, 43);
+      label3.Name = "label3";
+      label3.Size = new Size(93, 15);
+      label3.TabIndex = 11;
+      label3.Text = "Blob (Min/Max):";
+      // 
+      // numBlobMin
+      // 
+      numBlobMin.Location = new Point(405, 41);
+      numBlobMin.Maximum = new decimal(new int[] { 10000, 0, 0, 0 });
+      numBlobMin.Name = "numBlobMin";
+      numBlobMin.Size = new Size(53, 23);
+      numBlobMin.TabIndex = 12;
+      numBlobMin.Value = new decimal(new int[] { 30, 0, 0, 0 });
+      numBlobMin.ValueChanged += numBlobMin_ValueChanged;
+      // 
+      // numBlobMax
+      // 
+      numBlobMax.Location = new Point(464, 41);
+      numBlobMax.Maximum = new decimal(new int[] { 10000, 0, 0, 0 });
+      numBlobMax.Name = "numBlobMax";
+      numBlobMax.Size = new Size(53, 23);
+      numBlobMax.TabIndex = 13;
+      numBlobMax.Value = new decimal(new int[] { 8000, 0, 0, 0 });
+      numBlobMax.ValueChanged += numBlobMax_ValueChanged;
       // 
       // Form1
       // 
       AutoScaleDimensions = new SizeF(7F, 15F);
       AutoScaleMode = AutoScaleMode.Font;
       ClientSize = new Size(577, 371);
+      Controls.Add(numBlobMax);
+      Controls.Add(numBlobMin);
+      Controls.Add(label3);
+      Controls.Add(label2);
+      Controls.Add(ThresholdHScroll);
       Controls.Add(btnRefresh);
       Controls.Add(numBrightnessThreshold);
       Controls.Add(lblStatus);
@@ -145,10 +204,12 @@ namespace VisionLedTest
       Controls.Add(_btnStop);
       Controls.Add(_btnStart);
       Name = "Form1";
-      Text = "Form1";
+      Text = "Super-duper Top Secret";
       Load += Form1_Load;
       ((System.ComponentModel.ISupportInitialize)_preview).EndInit();
       ((System.ComponentModel.ISupportInitialize)numBrightnessThreshold).EndInit();
+      ((System.ComponentModel.ISupportInitialize)numBlobMin).EndInit();
+      ((System.ComponentModel.ISupportInitialize)numBlobMax).EndInit();
       ResumeLayout(false);
       PerformLayout();
     }
@@ -164,5 +225,10 @@ namespace VisionLedTest
     private Label lblStatus;
     private NumericUpDown numBrightnessThreshold;
     private Button btnRefresh;
+    private HScrollBar ThresholdHScroll;
+    private Label label2;
+    private Label label3;
+    private NumericUpDown numBlobMin;
+    private NumericUpDown numBlobMax;
   }
 }
