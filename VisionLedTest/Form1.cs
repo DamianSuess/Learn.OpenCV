@@ -10,6 +10,7 @@ using OpenCvSharp.Extensions;
 
 namespace VisionLedTest;
 
+// TODO: Use method calls!!! Not cheap hax0r skr1p7 k!ddy 1997 workarounds
 public partial class Form1 : Form
 {
   private VideoCapture? _capture;
@@ -19,7 +20,8 @@ public partial class Form1 : Form
   #region ROI Selection / Mapping
 
   private readonly object _roiLock = new();
-  private Rect _roi = new Rect(X: 100, Y: 100, Width: 500, Height: 350);
+  ////private Rect _roi = new Rect(X: 100, Y: 100, Width: 500, Height: 350);
+  private Rect _roi = new Rect(X: 48, Y: 254, Width: 911, Height: 990);
 
   private bool _dragging = false;
 
@@ -39,9 +41,11 @@ public partial class Form1 : Form
   #region Detection Knobs
 
   /// <summary>Range: 0 - 225.</summary>
-  private int _brightThreshold = 220;
+  /// <remarks>230.</remarks>
+  private int _brightThreshold = 240;
 
   /// <summary>Ignore tiny specks.</summary>
+  /// <remarks>30.</remarks>
   private int _minBlobArea = 30;
 
   /// <summary>Ignore huge reflections.</summary>
@@ -102,18 +106,28 @@ public partial class Form1 : Form
 
   private void BtnLoadTemplate_Click(object sender, EventArgs e)
   {
-    using var ofd = new OpenFileDialog
+    string templatePath;
+    if (sender as Button == btnImageRefresh && _imageFileName is not null)
     {
-      Filter = "Images (*.png;*.jpg)|*.png;*.jpg|PNG Images (*.png)|*.png|JPEG Images (*.jpg)|*.jpg|All Files|*",
-    };
+      templatePath = _imageFileName;
+    }
+    else
+    {
+      using var ofd = new OpenFileDialog
+      {
+        Filter = "Images (*.png;*.jpg)|*.png;*.jpg|PNG Images (*.png)|*.png|JPEG Images (*.jpg)|*.jpg|All Files|*",
+      };
 
-    if (ofd.ShowDialog() != DialogResult.OK)
-      return;
+      if (ofd.ShowDialog() != DialogResult.OK)
+        return;
 
-    var templatePath = ofd.FileName;
+      templatePath = ofd.FileName;
+    }
+
     try
     {
-      using var gray = Cv2.ImRead(templatePath, ImreadModes.Grayscale);
+      ////using var gray = Cv2.ImRead(templatePath, ImreadModes.Grayscale);
+      using var gray = Cv2.ImRead(templatePath, ImreadModes.Color);
       if (gray.Empty())
       {
         MessageBox.Show("Failed to load image");
@@ -121,8 +135,13 @@ public partial class Form1 : Form
       }
 
       _imageFileName = templatePath;
-      ////AnalyzeStaticImage(gray);
-      AnalyzeFrame(gray);
+
+      int algorithm = 2;
+
+      if (algorithm == 1)
+        AnalyzeStaticImage(gray); // Alg1: Binary OG Static Images
+      else
+        AnalyzeFrame(gray, isSrcGrayscale: false); // Alg2: Video algorithm
     }
     catch (Exception ex)
     {
@@ -146,7 +165,7 @@ public partial class Form1 : Form
     AnalyzeStaticImage(grayMat);
   }
 
-  private void AnalyzeFrame(Mat frame)
+  private void AnalyzeFrame(Mat frame, bool isSrcGrayscale = false)
   {
     // Update frame size for mapping ROI selections
     _lastFrameWidth = frame.Width;
@@ -165,16 +184,40 @@ public partial class Form1 : Form
       safeRoi = new Rect(0, 0, frame.Width, frame.Height);
 
     // Process ROI and detect LED rectangles
-    var ledRects = DetectLedRects(frame, safeRoi, out int ledCount);
+    int ledCount = 0;
+    List<Rect> ledRects;
+    if (isSrcGrayscale)
+      ledRects = DetectLedRectsPng(frame, safeRoi, out ledCount);
+    else
+      ledRects = DetectLedRects(frame, safeRoi, out ledCount);
 
     // Log state transitions only
     LogStateTransitions(ledCount);
 
     // Draw overlays: ROI + LED rectangles
-    DrawOverlay(frame, safeRoi, ledRects, ledCount);
+    DrawOverlay(frame, safeRoi, ledRects, ledCount, isBgColor: true);
 
     // Push to UI (PictureBox)
     UpdatePreview(frame);
+
+    lblCount.Text = ledRects.Count.ToString();
+    lblStatus.Text = $"LEDs found: {ledRects.Count}";
+  }
+
+  private void AnalyzeBinary(Mat frame)
+  {
+    var src = Cv2.ImRead(_imageFileName, ImreadModes.Grayscale);
+    Rect roi = new()
+    {
+      X = 0,
+      Y = 0,
+      Width = src.Width,
+      Height = src.Height,
+    };
+
+    // Threshold to find bright mark
+    Cv2.Threshold(src, src, 200, 255, ThresholdTypes.Binary);
+    UpdatePreview(src);
   }
 
   private void AnalyzeStaticImage(Mat? gray)
@@ -182,24 +225,7 @@ public partial class Form1 : Form
     try
     {
       // Show quick grayscale preview with threshold applied (for user feedback/tuning) - this is optional and can be removed
-      if (1 == 2)
-      {
-        var src = Cv2.ImRead(_imageFileName, ImreadModes.Grayscale);
-        Rect roi = new()
-        {
-          X = 0,
-          Y = 0,
-          Width = src.Width,
-          Height = src.Height,
-        };
-
-        // Threshold to find bright mark
-        Cv2.Threshold(src, src, 200, 255, ThresholdTypes.Binary);
-
-        UpdatePreview(src);
-      }
-
-      double thresh = (double)numBrightnessThreshold.Value;
+      double thresh = _brightThreshold;
 
       // Create a binary mask (don't mutate gray in-place)
       using var binary = new Mat();
@@ -217,8 +243,14 @@ public partial class Form1 : Form
 
       foreach (var cnt in contours)
       {
+        // Min/Max Blob size
+        double area = Cv2.ContourArea(cnt);
+        if (area < _minBlobArea || area > _maxBlobArea)
+          continue;
+
         var m = Cv2.Moments(cnt);
-        if (Math.Abs(m.M00) < double.Epsilon) continue;
+        if (Math.Abs(m.M00) < double.Epsilon)
+          continue;
 
         int cx = (int)(m.M10 / m.M00);
         int cy = (int)(m.M01 / m.M00);
@@ -245,7 +277,8 @@ public partial class Form1 : Form
         for (int i = 1; i < nLabels; i++)
         {
           int area = stats.At<int>(i, (int)ConnectedComponentsTypes.Area);
-          if (area < 3) continue; // filter tiny specks; tune this
+          if (area < 3)
+            continue; // filter tiny specks; tune this
 
           // Centroids is CV_64F with 2 columns (x,y)
           double cx = centroids.At<double>(i, 0);
@@ -269,6 +302,7 @@ public partial class Form1 : Form
 
       _ledPositions = centers;
 
+      lblCount.Text = _ledPositions.Count.ToString();
       lblStatus.Text = $"Template loaded: {System.IO.Path.GetFileName(_imageFileName)}; LEDs found: {_ledPositions.Count}";
     }
     catch (Exception ex)
@@ -311,6 +345,14 @@ public partial class Form1 : Form
 
     _dragRectClient = Rectangle.Empty;
     _preview.Invalidate();
+
+    // Search again for blobs (LEDs)
+    if (_imageFileName is not null)
+    {
+      // TODO: Use method calls!!! Not cheap hax0r skr1p7 k!ddy 1997 workarounds
+      // Pass, 'btnImageRefresh' object so the image analyzer thinks Refresh called it
+      btnImageRefresh_Click(btnImageRefresh, e);
+    }
   }
 
   private void PreviewMouseMove(object? sender, MouseEventArgs e)
@@ -476,17 +518,84 @@ public partial class Form1 : Form
     return rects;
   }
 
-  private void DrawOverlay(Mat frame, Rect roi, List<Rect> ledRects, int ledCount)
+  private List<Rect> DetectLedRectsPng(Mat frameBgr, Rect roi, out int ledCount)
+  {
+    // Work on ROI only
+    using var roiBgr = new Mat(frameBgr, roi);
+
+    //// We already converted to grayscale when image was loaded
+    ////using var gray = new Mat();
+    ////Cv2.CvtColor(roiBgr, gray, ColorConversionCodes.BGR2GRAY);
+
+    using var blurred = new Mat();
+    ////Cv2.GaussianBlur(gray, blurred, new OpenCvSharp.Size(5, 5), 0);
+    Cv2.GaussianBlur(roiBgr, blurred, new OpenCvSharp.Size(5, 5), 0);
+
+    // Threshold for bright pixels (LEDs)
+    using var binary = new Mat();
+    Cv2.Threshold(blurred, binary, _brightThreshold, 255, ThresholdTypes.Binary);
+
+    // Morphological cleanup
+    using var kernel = Cv2.GetStructuringElement(
+      MorphShapes.Ellipse,
+      new OpenCvSharp.Size(_morphKernelSize, _morphKernelSize));
+
+    using var opened = new Mat();
+    Cv2.MorphologyEx(binary, opened, MorphTypes.Open, kernel);
+
+    using var closed = new Mat();
+    Cv2.MorphologyEx(opened, closed, MorphTypes.Close, kernel);
+
+    // Find blobs
+    Cv2.FindContours(closed, out OpenCvSharp.Point[][] contours, out _,
+      RetrievalModes.External, ContourApproximationModes.ApproxSimple);
+
+    var rects = new List<Rect>();
+
+    foreach (var c in contours)
+    {
+      double area = Cv2.ContourArea(c);
+      if (area < _minBlobArea || area > _maxBlobArea)
+        continue;
+
+      var r = Cv2.BoundingRect(c);
+
+      // Optional:
+      // Reject overly skinny shapes (glare streaks)
+      double aspect = r.Width / (double)Math.Max(1, r.Height);
+      if (aspect < 0.2 || aspect > 5.0)
+        continue;
+
+      // Convert ROI-local rect to full-frame coordinates
+      var rf = new Rect(r.X + roi.X, r.Y + roi.Y, r.Width, r.Height);
+      rects.Add(rf);
+    }
+
+    ledCount = rects.Count;
+    return rects;
+  }
+
+  private void DrawOverlay(Mat frame, Rect roi, List<Rect> ledRects, int ledCount, bool isBgColor = false)
   {
     // ROI in yellow
     Cv2.Rectangle(frame, roi, new Scalar(0, 255, 255), 2);
 
-    // LED boxes in green
-    foreach (var r in ledRects)
-      Cv2.Rectangle(frame, r, new Scalar(0, 255, 0), 2);
+    if (isBgColor)
+    {
+      // LED boxes in Magic Pink
+      foreach (var r in ledRects)
+        Cv2.Rectangle(frame, r, new Scalar(255, 0, 255), 2);
+    }
+    else
+    {
+      // NOTE: When displaying as 'Binary' (black/white), you MUST draw in black/white
+      foreach (var r in ledRects)
+        Cv2.Rectangle(frame, r, new Scalar(0), 3);
+    }
 
     // Status text
-    string status = $"LEDs ON: {ledCount}  Thr={_brightThreshold}  MinArea={_minBlobArea}";
+    string roiCoords = $"[{roi.X},{roi.Y},{roi.Width},{roi.Height}]";
+    string status = $"LEDs ON: {ledCount}  Thr={_brightThreshold}  MinArea={_minBlobArea}  ROI={roiCoords}";
     Cv2.PutText(frame, status, new OpenCvSharp.Point(10, 30),
       HersheyFonts.HersheySimplex, 0.8, new Scalar(255, 255, 255), 2);
 
@@ -664,5 +773,10 @@ public partial class Form1 : Form
   private void numBlobMin_ValueChanged(object sender, EventArgs e)
   {
     _minBlobArea = (int)numBlobMin.Value;
+  }
+
+  private void btnImageRefresh_Click(object sender, EventArgs e)
+  {
+    BtnLoadTemplate_Click(sender, e);
   }
 }

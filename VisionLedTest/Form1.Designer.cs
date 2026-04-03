@@ -45,6 +45,7 @@ namespace VisionLedTest
       label3 = new Label();
       numBlobMin = new NumericUpDown();
       numBlobMax = new NumericUpDown();
+      btnImageRefresh = new Button();
       ((System.ComponentModel.ISupportInitialize)_preview).BeginInit();
       ((System.ComponentModel.ISupportInitialize)numBrightnessThreshold).BeginInit();
       ((System.ComponentModel.ISupportInitialize)numBlobMin).BeginInit();
@@ -93,7 +94,7 @@ namespace VisionLedTest
       // label1
       // 
       label1.AutoSize = true;
-      label1.Location = new Point(283, 16);
+      label1.Location = new Point(306, 16);
       label1.Name = "label1";
       label1.Size = new Size(29, 15);
       label1.TabIndex = 4;
@@ -102,7 +103,7 @@ namespace VisionLedTest
       // lblCount
       // 
       lblCount.AutoSize = true;
-      lblCount.Location = new Point(318, 16);
+      lblCount.Location = new Point(341, 16);
       lblCount.Name = "lblCount";
       lblCount.Size = new Size(13, 15);
       lblCount.TabIndex = 5;
@@ -111,7 +112,7 @@ namespace VisionLedTest
       // lblStatus
       // 
       lblStatus.AutoSize = true;
-      lblStatus.Location = new Point(348, 16);
+      lblStatus.Location = new Point(371, 16);
       lblStatus.Name = "lblStatus";
       lblStatus.Size = new Size(35, 15);
       lblStatus.TabIndex = 6;
@@ -184,11 +185,22 @@ namespace VisionLedTest
       numBlobMax.Value = new decimal(new int[] { 8000, 0, 0, 0 });
       numBlobMax.ValueChanged += numBlobMax_ValueChanged;
       // 
+      // btnImageRefresh
+      // 
+      btnImageRefresh.Location = new Point(274, 12);
+      btnImageRefresh.Name = "btnImageRefresh";
+      btnImageRefresh.Size = new Size(26, 23);
+      btnImageRefresh.TabIndex = 14;
+      btnImageRefresh.Text = "X";
+      btnImageRefresh.UseVisualStyleBackColor = true;
+      btnImageRefresh.Click += btnImageRefresh_Click;
+      // 
       // Form1
       // 
       AutoScaleDimensions = new SizeF(7F, 15F);
       AutoScaleMode = AutoScaleMode.Font;
       ClientSize = new Size(577, 371);
+      Controls.Add(btnImageRefresh);
       Controls.Add(numBlobMax);
       Controls.Add(numBlobMin);
       Controls.Add(label3);
@@ -230,5 +242,6 @@ namespace VisionLedTest
     private Label label3;
     private NumericUpDown numBlobMin;
     private NumericUpDown numBlobMax;
+    private Button btnImageRefresh;
   }
 }
