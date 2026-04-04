@@ -46,6 +46,11 @@ namespace VisionLedTest
       numBlobMin = new NumericUpDown();
       numBlobMax = new NumericUpDown();
       btnImageRefresh = new Button();
+      cmboCamera = new ComboBox();
+      label4 = new Label();
+      label5 = new Label();
+      BlobMinScroll = new HScrollBar();
+      BlobMaxScroll = new HScrollBar();
       ((System.ComponentModel.ISupportInitialize)_preview).BeginInit();
       ((System.ComponentModel.ISupportInitialize)numBrightnessThreshold).BeginInit();
       ((System.ComponentModel.ISupportInitialize)numBlobMin).BeginInit();
@@ -75,9 +80,9 @@ namespace VisionLedTest
       // _preview
       // 
       _preview.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-      _preview.Location = new Point(12, 67);
+      _preview.Location = new Point(12, 120);
       _preview.Name = "_preview";
-      _preview.Size = new Size(553, 292);
+      _preview.Size = new Size(572, 256);
       _preview.TabIndex = 2;
       _preview.TabStop = false;
       // 
@@ -120,7 +125,7 @@ namespace VisionLedTest
       // 
       // numBrightnessThreshold
       // 
-      numBrightnessThreshold.Location = new Point(165, 41);
+      numBrightnessThreshold.Location = new Point(70, 70);
       numBrightnessThreshold.Maximum = new decimal(new int[] { 255, 0, 0, 0 });
       numBrightnessThreshold.Name = "numBrightnessThreshold";
       numBrightnessThreshold.Size = new Size(53, 23);
@@ -130,27 +135,27 @@ namespace VisionLedTest
       // 
       // btnRefresh
       // 
-      btnRefresh.Location = new Point(224, 41);
+      btnRefresh.Location = new Point(175, 41);
       btnRefresh.Name = "btnRefresh";
-      btnRefresh.Size = new Size(76, 23);
+      btnRefresh.Size = new Size(125, 23);
       btnRefresh.TabIndex = 8;
-      btnRefresh.Text = "Refresh";
+      btnRefresh.Text = "Refresh (Alg2)";
       btnRefresh.UseVisualStyleBackColor = true;
       btnRefresh.Click += btnRefresh_Click;
       // 
       // ThresholdHScroll
       // 
-      ThresholdHScroll.Location = new Point(62, 38);
+      ThresholdHScroll.Location = new Point(13, 91);
       ThresholdHScroll.Maximum = 255;
       ThresholdHScroll.Name = "ThresholdHScroll";
-      ThresholdHScroll.Size = new Size(100, 23);
+      ThresholdHScroll.Size = new Size(110, 23);
       ThresholdHScroll.TabIndex = 9;
       ThresholdHScroll.Scroll += ThresholdHScroll_Scroll;
       // 
       // label2
       // 
       label2.AutoSize = true;
-      label2.Location = new Point(13, 40);
+      label2.Location = new Point(13, 73);
       label2.Name = "label2";
       label2.Size = new Size(46, 15);
       label2.TabIndex = 10;
@@ -159,16 +164,17 @@ namespace VisionLedTest
       // label3
       // 
       label3.AutoSize = true;
-      label3.Location = new Point(306, 43);
+      label3.Location = new Point(129, 73);
       label3.Name = "label3";
-      label3.Size = new Size(93, 15);
+      label3.Size = new Size(60, 15);
       label3.TabIndex = 11;
-      label3.Text = "Blob (Min/Max):";
+      label3.Text = "Blob MIN:";
       // 
       // numBlobMin
       // 
-      numBlobMin.Location = new Point(405, 41);
-      numBlobMin.Maximum = new decimal(new int[] { 10000, 0, 0, 0 });
+      numBlobMin.Increment = new decimal(new int[] { 5, 0, 0, 0 });
+      numBlobMin.Location = new Point(195, 70);
+      numBlobMin.Maximum = new decimal(new int[] { 1000, 0, 0, 0 });
       numBlobMin.Name = "numBlobMin";
       numBlobMin.Size = new Size(53, 23);
       numBlobMin.TabIndex = 12;
@@ -177,7 +183,8 @@ namespace VisionLedTest
       // 
       // numBlobMax
       // 
-      numBlobMax.Location = new Point(464, 41);
+      numBlobMax.Increment = new decimal(new int[] { 10, 0, 0, 0 });
+      numBlobMax.Location = new Point(323, 70);
       numBlobMax.Maximum = new decimal(new int[] { 10000, 0, 0, 0 });
       numBlobMax.Name = "numBlobMax";
       numBlobMax.Size = new Size(53, 23);
@@ -195,11 +202,62 @@ namespace VisionLedTest
       btnImageRefresh.UseVisualStyleBackColor = true;
       btnImageRefresh.Click += btnImageRefresh_Click;
       // 
+      // cmboCamera
+      // 
+      cmboCamera.Enabled = false;
+      cmboCamera.FormattingEnabled = true;
+      cmboCamera.Location = new Point(70, 41);
+      cmboCamera.Name = "cmboCamera";
+      cmboCamera.Size = new Size(99, 23);
+      cmboCamera.TabIndex = 15;
+      // 
+      // label4
+      // 
+      label4.AutoSize = true;
+      label4.Enabled = false;
+      label4.Location = new Point(13, 44);
+      label4.Name = "label4";
+      label4.Size = new Size(51, 15);
+      label4.TabIndex = 16;
+      label4.Text = "Camera:";
+      // 
+      // label5
+      // 
+      label5.AutoSize = true;
+      label5.Location = new Point(254, 73);
+      label5.Name = "label5";
+      label5.Size = new Size(63, 15);
+      label5.TabIndex = 17;
+      label5.Text = "Blob MAX:";
+      // 
+      // BlobMinScroll
+      // 
+      BlobMinScroll.Location = new Point(129, 91);
+      BlobMinScroll.Maximum = 10000;
+      BlobMinScroll.Name = "BlobMinScroll";
+      BlobMinScroll.Size = new Size(119, 23);
+      BlobMinScroll.TabIndex = 18;
+      BlobMinScroll.ValueChanged += BlobMinScroll_ValueChanged;
+      // 
+      // BlobMaxScroll
+      // 
+      BlobMaxScroll.Location = new Point(254, 91);
+      BlobMaxScroll.Maximum = 10000;
+      BlobMaxScroll.Name = "BlobMaxScroll";
+      BlobMaxScroll.Size = new Size(122, 23);
+      BlobMaxScroll.TabIndex = 19;
+      BlobMaxScroll.ValueChanged += BlobMaxScroll_ValueChanged;
+      // 
       // Form1
       // 
       AutoScaleDimensions = new SizeF(7F, 15F);
       AutoScaleMode = AutoScaleMode.Font;
-      ClientSize = new Size(577, 371);
+      ClientSize = new Size(596, 388);
+      Controls.Add(BlobMaxScroll);
+      Controls.Add(BlobMinScroll);
+      Controls.Add(label5);
+      Controls.Add(label4);
+      Controls.Add(cmboCamera);
       Controls.Add(btnImageRefresh);
       Controls.Add(numBlobMax);
       Controls.Add(numBlobMin);
@@ -216,7 +274,7 @@ namespace VisionLedTest
       Controls.Add(_btnStop);
       Controls.Add(_btnStart);
       Name = "Form1";
-      Text = "Super-duper Top Secret";
+      Text = "Supadupa LED Finder";
       Load += Form1_Load;
       ((System.ComponentModel.ISupportInitialize)_preview).EndInit();
       ((System.ComponentModel.ISupportInitialize)numBrightnessThreshold).EndInit();
@@ -243,5 +301,10 @@ namespace VisionLedTest
     private NumericUpDown numBlobMin;
     private NumericUpDown numBlobMax;
     private Button btnImageRefresh;
+    private ComboBox cmboCamera;
+    private Label label4;
+    private Label label5;
+    private HScrollBar BlobMinScroll;
+    private HScrollBar BlobMaxScroll;
   }
 }

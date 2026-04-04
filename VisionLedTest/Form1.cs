@@ -83,8 +83,39 @@ public partial class Form1 : Form
     _preview.Cursor = Cursors.Cross;
 
     FormClosing += async (_, __) => await StopAsync();
+
     numBrightnessThreshold.Value = _brightThreshold;
+    numBlobMax.Value = _maxBlobArea;
+    numBlobMin.Value = _minBlobArea;
+
     ThresholdHScroll.Value = _brightThreshold;
+    BlobMaxScroll.Value = _maxBlobArea;
+    BlobMinScroll.Value = _minBlobArea;
+
+    // Causes app to delay by 5sec on startup & not wired to Start/Stop
+    ////GetCameraList();
+  }
+
+  private void GetCameraList()
+  {
+    // NOTE for OpenCVSharp's VideoCaptureAPIs
+    //  * 700 (70x) points to DirectShow (DSHOW) :: camera_id + domain_offset (1+700) 
+    //  * 1400 (140x) to MSMF
+
+    int cameraCount = 0;
+    while (true)
+    {
+      using (var cap = new VideoCapture(cameraCount))
+      {
+        if (!cap.IsOpened())
+          break;
+
+        cmboCamera.Items.Add(cameraCount);
+        cameraCount++;
+      }
+    }
+
+    Console.WriteLine($"Detected {cameraCount} camera(s)");
   }
 
   private void Form1_Load(object sender, EventArgs e)
@@ -95,6 +126,7 @@ public partial class Form1 : Form
   {
     _imageFileName = null;
     await StartAsync();
+    btnLoadTemplate.Enabled = false;
   }
 
   private async void BtnStop_Click(object sender, EventArgs e)
@@ -102,11 +134,14 @@ public partial class Form1 : Form
     _imageFileName = null;
 
     await StopAsync();
+    btnLoadTemplate.Enabled = true;
   }
 
   private void BtnLoadTemplate_Click(object sender, EventArgs e)
   {
     string templatePath;
+
+    // Don't do this, use a method with a parameter
     if (sender as Button == btnImageRefresh && _imageFileName is not null)
     {
       templatePath = _imageFileName;
@@ -200,8 +235,19 @@ public partial class Form1 : Form
     // Push to UI (PictureBox)
     UpdatePreview(frame);
 
-    lblCount.Text = ledRects.Count.ToString();
-    lblStatus.Text = $"LEDs found: {ledRects.Count}";
+    if (lblCount.InvokeRequired)
+    {
+      lblCount.BeginInvoke(new Action(() =>
+      {
+        lblCount.Text = ledRects.Count.ToString();
+        lblStatus.Text = $"LEDs found: {ledRects.Count}";
+      }));
+    }
+    else
+    {
+      lblCount.Text = ledRects.Count.ToString();
+      lblStatus.Text = $"LEDs found: {ledRects.Count}";
+    }
   }
 
   private void AnalyzeBinary(Mat frame)
@@ -778,5 +824,17 @@ public partial class Form1 : Form
   private void btnImageRefresh_Click(object sender, EventArgs e)
   {
     BtnLoadTemplate_Click(sender, e);
+  }
+
+  private void BlobMaxScroll_ValueChanged(object sender, EventArgs e)
+  {
+    _maxBlobArea = BlobMaxScroll.Value;
+    numBlobMax.Value = _maxBlobArea;
+  }
+
+  private void BlobMinScroll_ValueChanged(object sender, EventArgs e)
+  {
+    _minBlobArea = BlobMinScroll.Value;
+    numBlobMin.Value = _minBlobArea;
   }
 }
