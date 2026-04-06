@@ -1,4 +1,4 @@
-﻿using System.Drawing;
+using System.Drawing;
 using System.Windows.Forms;
 
 namespace VisionLedTest
@@ -65,7 +65,7 @@ namespace VisionLedTest
       _btnStart.TabIndex = 0;
       _btnStart.Text = "Start";
       _btnStart.UseVisualStyleBackColor = true;
-      _btnStart.Click += BtnStart_Click;
+      _btnStart.Click += BtnStart_ClickAsync;
       // 
       // _btnStop
       // 
@@ -75,7 +75,7 @@ namespace VisionLedTest
       _btnStop.TabIndex = 1;
       _btnStop.Text = "Stop";
       _btnStop.UseVisualStyleBackColor = true;
-      _btnStop.Click += BtnStop_Click;
+      _btnStop.Click += BtnStop_ClickAsync;
       // 
       // _preview
       // 
@@ -233,7 +233,7 @@ namespace VisionLedTest
       // BlobMinScroll
       // 
       BlobMinScroll.Location = new Point(129, 91);
-      BlobMinScroll.Maximum = 10000;
+      BlobMinScroll.Maximum = 1000;
       BlobMinScroll.Name = "BlobMinScroll";
       BlobMinScroll.Size = new Size(119, 23);
       BlobMinScroll.TabIndex = 18;

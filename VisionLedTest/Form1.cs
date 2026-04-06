@@ -13,6 +13,9 @@ namespace VisionLedTest;
 // TODO: Use method calls!!! Not cheap hax0r skr1p7 k!ddy 1997 workarounds
 public partial class Form1 : Form
 {
+  /// <summary>Light/LED detector business logic.</summary>
+  private readonly LightDetector _detector = new();
+
   private VideoCapture? _capture;
   private CancellationTokenSource? _cts;
   private Task? _captureTask;
@@ -20,10 +23,8 @@ public partial class Form1 : Form
   #region ROI Selection / Mapping
 
   private readonly object _roiLock = new();
-  ////private Rect _roi = new Rect(X: 100, Y: 100, Width: 500, Height: 350);
-  private Rect _roi = new Rect(X: 48, Y: 254, Width: 911, Height: 990);
 
-  private bool _dragging = false;
+  private bool _isDragging = false;
 
   /// <summary>Client coords in PictureBox.</summary>
   private System.Drawing.Point _dragStartClient;
@@ -33,40 +34,8 @@ public partial class Form1 : Form
 
   #endregion ROI Selection / Mapping
 
-  // Store latest frame size for accurate mapping from PictureBox -> image coords
-  private int _lastFrameWidth = 0;
-
-  private int _lastFrameHeight = 0;
-
-  #region Detection Knobs
-
-  /// <summary>Range: 0 - 225.</summary>
-  /// <remarks>230.</remarks>
-  private int _brightThreshold = 240;
-
-  /// <summary>Ignore tiny specks.</summary>
-  /// <remarks>30.</remarks>
-  private int _minBlobArea = 30;
-
-  /// <summary>Ignore huge reflections.</summary>
-  private int _maxBlobArea = 8000;
-
-  /// <summary>Cleanup kernel size.</summary>
-  private int _morphKernelSize = 3;
-
-  #endregion Detection Knobs
-
   private string? _imageFileName = null;
   private List<System.Drawing.Point> _ledPositions = [];
-
-  private int _lastState = -1;
-
-  private enum StateMachine
-  {
-    None = 0,
-    One = 1,
-    MoreThanOne = 2,
-  }
 
   public Form1()
   {
@@ -84,52 +53,30 @@ public partial class Form1 : Form
 
     FormClosing += async (_, __) => await StopAsync();
 
-    numBrightnessThreshold.Value = _brightThreshold;
-    numBlobMax.Value = _maxBlobArea;
-    numBlobMin.Value = _minBlobArea;
+    numBrightnessThreshold.Value = _detector.BrightThreshold;
+    numBlobMax.Value = _detector.BlobAreaMax;
+    numBlobMin.Value = _detector.BlobAreaMin;
 
-    ThresholdHScroll.Value = _brightThreshold;
-    BlobMaxScroll.Value = _maxBlobArea;
-    BlobMinScroll.Value = _minBlobArea;
+    ThresholdHScroll.Value = _detector.BrightThreshold;
+    BlobMaxScroll.Value = _detector.BlobAreaMax;
+    BlobMinScroll.Value = _detector.BlobAreaMin;
 
     // Causes app to delay by 5sec on startup & not wired to Start/Stop
-    ////GetCameraList();
-  }
-
-  private void GetCameraList()
-  {
-    // NOTE for OpenCVSharp's VideoCaptureAPIs
-    //  * 700 (70x) points to DirectShow (DSHOW) :: camera_id + domain_offset (1+700) 
-    //  * 1400 (140x) to MSMF
-
-    int cameraCount = 0;
-    while (true)
-    {
-      using (var cap = new VideoCapture(cameraCount))
-      {
-        if (!cap.IsOpened())
-          break;
-
-        cmboCamera.Items.Add(cameraCount);
-        cameraCount++;
-      }
-    }
-
-    Console.WriteLine($"Detected {cameraCount} camera(s)");
+    ////_detector.GetCameraList();
   }
 
   private void Form1_Load(object sender, EventArgs e)
   {
   }
 
-  private async void BtnStart_Click(object sender, EventArgs e)
+  private async void BtnStart_ClickAsync(object sender, EventArgs e)
   {
     _imageFileName = null;
     await StartAsync();
     btnLoadTemplate.Enabled = false;
   }
 
-  private async void BtnStop_Click(object sender, EventArgs e)
+  private async void BtnStop_ClickAsync(object sender, EventArgs e)
   {
     _imageFileName = null;
 
@@ -161,9 +108,12 @@ public partial class Form1 : Form
 
     try
     {
-      ////using var gray = Cv2.ImRead(templatePath, ImreadModes.Grayscale);
-      using var gray = Cv2.ImRead(templatePath, ImreadModes.Color);
-      if (gray.Empty())
+      // Analyze in color and let "LightDetector" class binarize it
+      // So that we can display the output in color.
+      //
+      ////using var frame = Cv2.ImRead(templatePath, ImreadModes.Grayscale);
+      using var frame = Cv2.ImRead(templatePath, ImreadModes.Color);
+      if (frame.Empty())
       {
         MessageBox.Show("Failed to load image");
         return;
@@ -174,9 +124,14 @@ public partial class Form1 : Form
       int algorithm = 2;
 
       if (algorithm == 1)
-        AnalyzeStaticImage(gray); // Alg1: Binary OG Static Images
+        AnalyzeStaticImage(frame); // Alg1: Binary OG Static Images
       else
-        AnalyzeFrame(gray, isSrcGrayscale: false); // Alg2: Video algorithm
+      {
+        _detector.AnalyzeFrame(frame, rois: null, isSrcGrayscale: false);
+      }
+
+      // Push to UI (PictureBox)
+      UpdatePreview(frame);
     }
     catch (Exception ex)
     {
@@ -200,56 +155,6 @@ public partial class Form1 : Form
     AnalyzeStaticImage(grayMat);
   }
 
-  private void AnalyzeFrame(Mat frame, bool isSrcGrayscale = false)
-  {
-    // Update frame size for mapping ROI selections
-    _lastFrameWidth = frame.Width;
-    _lastFrameHeight = frame.Height;
-
-    // Read ROI thread-safely and clamp to frame
-    Rect roi;
-    lock (_roiLock)
-      roi = _roi;
-
-    // Clamp ROI to the frame's Bounds
-    var safeRoi = ClampRectToFrame(_roi, frame.Width, frame.Height);
-
-    // Fallback region of interest
-    if (safeRoi.Width <= 0 || safeRoi.Height <= 0)
-      safeRoi = new Rect(0, 0, frame.Width, frame.Height);
-
-    // Process ROI and detect LED rectangles
-    int ledCount = 0;
-    List<Rect> ledRects;
-    if (isSrcGrayscale)
-      ledRects = DetectLedRectsPng(frame, safeRoi, out ledCount);
-    else
-      ledRects = DetectLedRects(frame, safeRoi, out ledCount);
-
-    // Log state transitions only
-    LogStateTransitions(ledCount);
-
-    // Draw overlays: ROI + LED rectangles
-    DrawOverlay(frame, safeRoi, ledRects, ledCount, isBgColor: true);
-
-    // Push to UI (PictureBox)
-    UpdatePreview(frame);
-
-    if (lblCount.InvokeRequired)
-    {
-      lblCount.BeginInvoke(new Action(() =>
-      {
-        lblCount.Text = ledRects.Count.ToString();
-        lblStatus.Text = $"LEDs found: {ledRects.Count}";
-      }));
-    }
-    else
-    {
-      lblCount.Text = ledRects.Count.ToString();
-      lblStatus.Text = $"LEDs found: {ledRects.Count}";
-    }
-  }
-
   private void AnalyzeBinary(Mat frame)
   {
     var src = Cv2.ImRead(_imageFileName, ImreadModes.Grayscale);
@@ -271,7 +176,8 @@ public partial class Form1 : Form
     try
     {
       // Show quick grayscale preview with threshold applied (for user feedback/tuning) - this is optional and can be removed
-      double thresh = _brightThreshold;
+      ////double thresh = _brightThreshold;
+      double thresh = _detector.BrightThreshold;
 
       // Create a binary mask (don't mutate gray in-place)
       using var binary = new Mat();
@@ -291,7 +197,7 @@ public partial class Form1 : Form
       {
         // Min/Max Blob size
         double area = Cv2.ContourArea(cnt);
-        if (area < _minBlobArea || area > _maxBlobArea)
+        if (area < _detector.BlobAreaMin || area > _detector.BlobAreaMax)
           continue;
 
         var m = Cv2.Moments(cnt);
@@ -361,7 +267,7 @@ public partial class Form1 : Form
   private void Preview_Paint(object? sender, PaintEventArgs e)
   {
     // Draw the in-progress selection rectangle in client coordinates.
-    if (_dragging && _dragRectClient.Width > 0 && _dragRectClient.Height > 0)
+    if (_isDragging && _dragRectClient.Width > 0 && _dragRectClient.Height > 0)
     {
       using var pen = new Pen(Color.Lime, 2);
       e.Graphics.DrawRectangle(pen, _dragRectClient);
@@ -373,19 +279,19 @@ public partial class Form1 : Form
 
   private void Preview_MouseUp(object? sender, MouseEventArgs e)
   {
-    if (!_dragging || e.Button != MouseButtons.Left) return;
-    _dragging = false;
+    if (!_isDragging || e.Button != MouseButtons.Left) return;
+    _isDragging = false;
 
     _dragRectClient = MakeNormalizedRect(_dragStartClient, e.Location);
 
     // Convert dragged client rectangle -> image/frame rectangle
-    var imgRect = ClientRectToImageRect(_dragRectClient);
+    var imgRect = ClientRectangleToImageRect(_dragRectClient);
     if (imgRect.HasValue && imgRect.Value.Width > 5 && imgRect.Value.Height > 5)
     {
       // Set new ROI (thread-safe)
       lock (_roiLock)
       {
-        _roi = imgRect.Value;
+        _detector.SetRoi(imgRect.Value);
       }
     }
 
@@ -403,7 +309,7 @@ public partial class Form1 : Form
 
   private void PreviewMouseMove(object? sender, MouseEventArgs e)
   {
-    if (!_dragging)
+    if (!_isDragging)
       return;
 
     _dragRectClient = MakeNormalizedRect(_dragStartClient, e.Location);
@@ -416,10 +322,12 @@ public partial class Form1 : Form
       return;
 
     // No frame yet
-    if (_lastFrameWidth <= 0 || _lastFrameHeight <= 0)
+    ////if (_lastFrameWidth <= 0 || _lastFrameHeight <= 0)
+    ////  return;
+    if (!_detector.HasCachedFrame)
       return;
 
-    _dragging = true;
+    _isDragging = true;
     _dragStartClient = e.Location;
     _dragRectClient = new Rectangle(e.Location, new System.Drawing.Size(0, 0));
     _preview.Invalidate(); // Force redraw of surface
@@ -430,7 +338,7 @@ public partial class Form1 : Form
     if (_captureTask is not null && _captureTask.IsCompleted)
       return;
 
-    _capture = new VideoCapture(0);
+    _capture = new VideoCapture(_detector.CameraIndex);
     if (!_capture.IsOpened())
     {
       MessageBox.Show("Could not open the webcam", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -446,8 +354,6 @@ public partial class Form1 : Form
     _cts = new CancellationTokenSource();
     _btnStart.Enabled = false;
     _btnStop.Enabled = true;
-
-    _lastState = -1; // reset logging state on start
 
     _captureTask = Task.Run(() => CaptureLoop(_cts.Token));
     await Task.CompletedTask;
@@ -484,7 +390,7 @@ public partial class Form1 : Form
       _btnStop.Enabled = false;
 
       // Clear any drag overlay
-      _dragging = false;
+      _isDragging = false;
       _dragRectClient = Rectangle.Empty;
       _preview.Invalidate();
     }
@@ -502,194 +408,43 @@ public partial class Form1 : Form
       if (!_capture.Read(frame) || frame.Empty())
         continue;
 
-      AnalyzeFrame(frame);
+      // NOTE: AnalyzeFrame ROIs and draw overlays for debugging, but this is not free.
+      //  Consider separating pure detection logic from visualization
+      //  for better performance in production.
+      var results = _detector.AnalyzeFrame(frame, rois: null);
+      ////AnalyzeFrame(frame);
+
+      // Push to UI (PictureBox)
+      UpdatePreview(frame);
+
+      void UpdateStatus()
+      {
+        lblCount.Text = results.Count.ToString();
+        lblStatus.Text = $"LEDs found: {results.Count}";
+      }
+
+      if (lblCount.InvokeRequired)
+        lblCount.BeginInvoke(new Action(() => UpdateStatus()));
+      else
+        UpdateStatus();
 
       // Small delay to reduce CPU (tune as desired)
       Thread.Sleep(5);
     }
   }
 
-  private List<Rect> DetectLedRects(Mat frameBgr, Rect roi, out int ledCount)
-  {
-    // Work on ROI only
-    using var roiBgr = new Mat(frameBgr, roi);
-
-    using var gray = new Mat();
-    Cv2.CvtColor(roiBgr, gray, ColorConversionCodes.BGR2GRAY);
-
-    using var blurred = new Mat();
-    Cv2.GaussianBlur(gray, blurred, new OpenCvSharp.Size(5, 5), 0);
-
-    // Threshold for bright pixels (LEDs)
-    using var binary = new Mat();
-    Cv2.Threshold(blurred, binary, _brightThreshold, 255, ThresholdTypes.Binary);
-
-    // Morphological cleanup
-    using var kernel = Cv2.GetStructuringElement(
-      MorphShapes.Ellipse,
-      new OpenCvSharp.Size(_morphKernelSize, _morphKernelSize));
-
-    using var opened = new Mat();
-    Cv2.MorphologyEx(binary, opened, MorphTypes.Open, kernel);
-
-    using var closed = new Mat();
-    Cv2.MorphologyEx(opened, closed, MorphTypes.Close, kernel);
-
-    // Find blobs
-    Cv2.FindContours(closed, out OpenCvSharp.Point[][] contours, out _,
-      RetrievalModes.External, ContourApproximationModes.ApproxSimple);
-
-    var rects = new List<Rect>();
-
-    foreach (var c in contours)
-    {
-      double area = Cv2.ContourArea(c);
-      if (area < _minBlobArea || area > _maxBlobArea)
-        continue;
-
-      var r = Cv2.BoundingRect(c);
-
-      // Optional:
-      // Reject overly skinny shapes (glare streaks)
-      double aspect = r.Width / (double)Math.Max(1, r.Height);
-      if (aspect < 0.2 || aspect > 5.0)
-        continue;
-
-      // Convert ROI-local rect to full-frame coordinates
-      var rf = new Rect(r.X + roi.X, r.Y + roi.Y, r.Width, r.Height);
-      rects.Add(rf);
-    }
-
-    ledCount = rects.Count;
-    return rects;
-  }
-
-  private List<Rect> DetectLedRectsPng(Mat frameBgr, Rect roi, out int ledCount)
-  {
-    // Work on ROI only
-    using var roiBgr = new Mat(frameBgr, roi);
-
-    //// We already converted to grayscale when image was loaded
-    ////using var gray = new Mat();
-    ////Cv2.CvtColor(roiBgr, gray, ColorConversionCodes.BGR2GRAY);
-
-    using var blurred = new Mat();
-    ////Cv2.GaussianBlur(gray, blurred, new OpenCvSharp.Size(5, 5), 0);
-    Cv2.GaussianBlur(roiBgr, blurred, new OpenCvSharp.Size(5, 5), 0);
-
-    // Threshold for bright pixels (LEDs)
-    using var binary = new Mat();
-    Cv2.Threshold(blurred, binary, _brightThreshold, 255, ThresholdTypes.Binary);
-
-    // Morphological cleanup
-    using var kernel = Cv2.GetStructuringElement(
-      MorphShapes.Ellipse,
-      new OpenCvSharp.Size(_morphKernelSize, _morphKernelSize));
-
-    using var opened = new Mat();
-    Cv2.MorphologyEx(binary, opened, MorphTypes.Open, kernel);
-
-    using var closed = new Mat();
-    Cv2.MorphologyEx(opened, closed, MorphTypes.Close, kernel);
-
-    // Find blobs
-    Cv2.FindContours(closed, out OpenCvSharp.Point[][] contours, out _,
-      RetrievalModes.External, ContourApproximationModes.ApproxSimple);
-
-    var rects = new List<Rect>();
-
-    foreach (var c in contours)
-    {
-      double area = Cv2.ContourArea(c);
-      if (area < _minBlobArea || area > _maxBlobArea)
-        continue;
-
-      var r = Cv2.BoundingRect(c);
-
-      // Optional:
-      // Reject overly skinny shapes (glare streaks)
-      double aspect = r.Width / (double)Math.Max(1, r.Height);
-      if (aspect < 0.2 || aspect > 5.0)
-        continue;
-
-      // Convert ROI-local rect to full-frame coordinates
-      var rf = new Rect(r.X + roi.X, r.Y + roi.Y, r.Width, r.Height);
-      rects.Add(rf);
-    }
-
-    ledCount = rects.Count;
-    return rects;
-  }
-
-  private void DrawOverlay(Mat frame, Rect roi, List<Rect> ledRects, int ledCount, bool isBgColor = false)
-  {
-    // ROI in yellow
-    Cv2.Rectangle(frame, roi, new Scalar(0, 255, 255), 2);
-
-    if (isBgColor)
-    {
-      // LED boxes in Magic Pink
-      foreach (var r in ledRects)
-        Cv2.Rectangle(frame, r, new Scalar(255, 0, 255), 2);
-    }
-    else
-    {
-      // NOTE: When displaying as 'Binary' (black/white), you MUST draw in black/white
-      foreach (var r in ledRects)
-        Cv2.Rectangle(frame, r, new Scalar(0), 3);
-    }
-
-    // Status text
-    string roiCoords = $"[{roi.X},{roi.Y},{roi.Width},{roi.Height}]";
-    string status = $"LEDs ON: {ledCount}  Thr={_brightThreshold}  MinArea={_minBlobArea}  ROI={roiCoords}";
-    Cv2.PutText(frame, status, new OpenCvSharp.Point(10, 30),
-      HersheyFonts.HersheySimplex, 0.8, new Scalar(255, 255, 255), 2);
-
-    // Helpful hint text
-    Cv2.PutText(frame, "Drag on the preview to set ROI", new OpenCvSharp.Point(10, 60),
-      HersheyFonts.HersheySimplex, 0.7, new Scalar(200, 200, 200), 2);
-  }
-
-  private void LogStateTransitions(int ledCount)
-  {
-    // TODO: Use Enum
-    int state = ledCount switch
-    {
-      0 => 0, // One LED
-      1 => 1, // Multiple LEDs
-      _ => 2, // None detected
-    };
-
-    if (state == _lastState)
-      return;
-
-    string ts = DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss.fff zzz");
-
-    if (state == 1)
-      Console.WriteLine($"[{ts}] Exactly ONE LED is ON");
-    else if (state == 2)
-      Console.WriteLine($"[{ts}] MULTIPLE LEDs are ON (count={ledCount})");
-    else
-      Console.WriteLine($"[{ts}] No LEDs are ON");
-
-    _lastState = state;
-  }
-
   private void UpdatePreview(Mat frameBgr)
   {
     // Convert to Bitmap for WinForms
     using Bitmap bmp = BitmapConverter.ToBitmap(frameBgr);
-    var x = (Bitmap)bmp.Clone();
+    var imgClone = (Bitmap)bmp.Clone();
 
     // Marshal to UI thread
     if (_preview.InvokeRequired)
-      _preview.BeginInvoke(new Action(() =>
-      {
-        //// SetPreviewImage((Bitmap)bmp.Clone());
-        SetPreviewImage(x);
-      }));
+      _preview.BeginInvoke(new Action(
+        () => SetPreviewImage(imgClone)));
     else
-      SetPreviewImage((Bitmap)bmp.Clone());
+      SetPreviewImage(imgClone);
   }
 
   private void SetPreviewImage(Bitmap newImage)
@@ -709,35 +464,16 @@ public partial class Form1 : Form
     return new Rectangle(x1, y1, x2 - x1, y2 - y1);
   }
 
-  private static Rect ClampRectToFrame(Rect r, int frameWidth, int frameHeight)
-  {
-    int x = Math.Max(0, r.X);
-    int y = Math.Max(0, r.Y);
-    int w = Math.Min(r.Width, frameWidth - x);
-    int h = Math.Min(r.Height, frameHeight - y);
-    ////return new Rect(x, y, w, h);
-    return new Rect(x, y, Math.Max(0, w), Math.Max(0, h));
-  }
-
   /// <summary>
   ///   Converts a PictureBox client rectangle (mouse drag) into an OpenCvSharp Rect in image pixels.
   ///   Returns null if selection is outside the displayed image area.
   /// </summary>
   ////  private Rect? ClientRectToImageRect(Rect clientRect)
-  private Rect? ClientRectToImageRect(Rectangle clientRect)
+  private Rect? ClientRectangleToImageRect(Rectangle clientRect)
   {
     var imgDisp = GetImageDisplayRect();
     if (imgDisp == Rectangle.Empty)
       return null;
-
-    // Convert OpenCV Rect to System.Drawing.Rectangle
-    ////Rectangle sysRect = new()
-    ////{
-    ////  X = clientRect.X,
-    ////  Y = clientRect.Y,
-    ////  Width = imgDisp.Width,
-    ////  Height = imgDisp.Height,
-    ////};
 
     // Intersect with displayed image area so dragging into black bars doesn't break mapping
     var sel = Rectangle.Intersect(clientRect, imgDisp);
@@ -745,8 +481,8 @@ public partial class Form1 : Form
       return null;
 
     // Map client -> image pixels
-    float scaleX = _lastFrameWidth / (float)imgDisp.Width;
-    float scaleY = _lastFrameHeight / (float)imgDisp.Height;
+    float scaleX = _detector.LastFrameWidth / (float)imgDisp.Width;
+    float scaleY = _detector.LastFrameHeight / (float)imgDisp.Height;
 
     int x = (int)((sel.X - imgDisp.X) * scaleX);
     int y = (int)((sel.Y - imgDisp.Y) * scaleY);
@@ -755,7 +491,7 @@ public partial class Form1 : Form
 
     // Clamp to image bounds
     var r = new Rect(x, y, w, h);
-    return ClampRectToFrame(r, _lastFrameWidth, _lastFrameHeight);
+    return _detector.ClampRectToFrame(r, _detector.LastFrameWidth, _detector.LastFrameHeight);
   }
 
   /// <summary>
@@ -767,8 +503,8 @@ public partial class Form1 : Form
     int pbW = _preview.ClientSize.Width;
     int pbH = _preview.ClientSize.Height;
 
-    int imgW = _lastFrameWidth;
-    int imgH = _lastFrameHeight;
+    int imgW = _detector.LastFrameWidth;
+    int imgH = _detector.LastFrameHeight;
 
     if (pbW <= 0 || pbH <= 0 || imgW <= 0 || imgH <= 0)
       return Rectangle.Empty;
@@ -798,13 +534,15 @@ public partial class Form1 : Form
 
   private void ThresholdHScroll_Scroll(object sender, ScrollEventArgs e)
   {
-    _brightThreshold = ThresholdHScroll.Value;
-    numBrightnessThreshold.Value = _brightThreshold;
+    ////_brightThreshold = ThresholdHScroll.Value;
+    _detector.BrightThreshold = ThresholdHScroll.Value;
+    numBrightnessThreshold.Value = ThresholdHScroll.Value;
   }
 
   private void numBrightnessThreshold_ValueChanged(object sender, EventArgs e)
   {
-    _brightThreshold = (int)numBrightnessThreshold.Value;
+    ////_brightThreshold = (int)numBrightnessThreshold.Value;
+    _detector.BrightThreshold = (int)numBrightnessThreshold.Value;
 
     // Auto refresh loaded template
     if (_imageFileName is not null)
@@ -813,12 +551,14 @@ public partial class Form1 : Form
 
   private void numBlobMax_ValueChanged(object sender, EventArgs e)
   {
-    _maxBlobArea = (int)numBlobMax.Value;
+    ////_maxBlobArea = (int)numBlobMax.Value;
+    _detector.BlobAreaMax = (int)numBlobMax.Value;
   }
 
   private void numBlobMin_ValueChanged(object sender, EventArgs e)
   {
-    _minBlobArea = (int)numBlobMin.Value;
+    ////_minBlobArea = (int)numBlobMin.Value;
+    _detector.BlobAreaMin = (int)numBlobMin.Value;
   }
 
   private void btnImageRefresh_Click(object sender, EventArgs e)
@@ -828,13 +568,15 @@ public partial class Form1 : Form
 
   private void BlobMaxScroll_ValueChanged(object sender, EventArgs e)
   {
-    _maxBlobArea = BlobMaxScroll.Value;
-    numBlobMax.Value = _maxBlobArea;
+    ////_maxBlobArea = BlobMaxScroll.Value;
+    _detector.BlobAreaMax = BlobMaxScroll.Value;
+    numBlobMax.Value = BlobMaxScroll.Value;
   }
 
   private void BlobMinScroll_ValueChanged(object sender, EventArgs e)
   {
-    _minBlobArea = BlobMinScroll.Value;
-    numBlobMin.Value = _minBlobArea;
+    ////_minBlobArea = BlobMinScroll.Value;
+    _detector.BlobAreaMin = BlobMinScroll.Value;
+    numBlobMin.Value = BlobMinScroll.Value;
   }
 }
