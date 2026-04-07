@@ -79,6 +79,8 @@ public class LightDetector
   /// <summary>Gets or sets indicating whether OpenCV has captured a frame in memory or not yet.</summary>
   public bool HasCachedFrame => _lastFrameWidth > 0 && _lastFrameHeight > 0;
 
+  public RoiManager RoiManager { get; } = new();
+
   /// <summary>Analysis Algorithm 'C' - Multi-ROI Detector.</summary>
   /// <param name="frame">Frame to analyze.</param>
   /// <param name="rois">Collection of <see cref="RoiDefinition"/>.</param>

@@ -31,51 +31,52 @@ namespace VisionLedTest
     /// </summary>
     private void InitializeComponent()
     {
-      _btnStart = new Button();
-      _btnStop = new Button();
+      BtnStart = new Button();
+      BtnStop = new Button();
       _preview = new PictureBox();
-      btnLoadTemplate = new Button();
+      BtnLoadTemplate = new Button();
       label1 = new Label();
-      lblCount = new Label();
-      lblStatus = new Label();
-      numBrightnessThreshold = new NumericUpDown();
-      btnRefresh = new Button();
+      LblCount = new Label();
+      LblStatus = new Label();
+      NumBrightnessThreshold = new NumericUpDown();
+      BtnRefresh = new Button();
       ThresholdHScroll = new HScrollBar();
       label2 = new Label();
       label3 = new Label();
-      numBlobMin = new NumericUpDown();
-      numBlobMax = new NumericUpDown();
-      btnImageRefresh = new Button();
-      cmboCamera = new ComboBox();
+      NumBlobMin = new NumericUpDown();
+      NumBlobMax = new NumericUpDown();
+      BtnImageRefresh = new Button();
+      CmbCamera = new ComboBox();
       label4 = new Label();
       label5 = new Label();
       BlobMinScroll = new HScrollBar();
       BlobMaxScroll = new HScrollBar();
+      BtnGenerateGrid = new Button();
       ((System.ComponentModel.ISupportInitialize)_preview).BeginInit();
-      ((System.ComponentModel.ISupportInitialize)numBrightnessThreshold).BeginInit();
-      ((System.ComponentModel.ISupportInitialize)numBlobMin).BeginInit();
-      ((System.ComponentModel.ISupportInitialize)numBlobMax).BeginInit();
+      ((System.ComponentModel.ISupportInitialize)NumBrightnessThreshold).BeginInit();
+      ((System.ComponentModel.ISupportInitialize)NumBlobMin).BeginInit();
+      ((System.ComponentModel.ISupportInitialize)NumBlobMax).BeginInit();
       SuspendLayout();
       // 
-      // _btnStart
+      // BtnStart
       // 
-      _btnStart.Location = new Point(13, 12);
-      _btnStart.Name = "_btnStart";
-      _btnStart.Size = new Size(75, 23);
-      _btnStart.TabIndex = 0;
-      _btnStart.Text = "Start";
-      _btnStart.UseVisualStyleBackColor = true;
-      _btnStart.Click += BtnStart_ClickAsync;
+      BtnStart.Location = new Point(13, 12);
+      BtnStart.Name = "BtnStart";
+      BtnStart.Size = new Size(75, 23);
+      BtnStart.TabIndex = 0;
+      BtnStart.Text = "Start";
+      BtnStart.UseVisualStyleBackColor = true;
+      BtnStart.Click += BtnStart_ClickAsync;
       // 
-      // _btnStop
+      // BtnStop
       // 
-      _btnStop.Location = new Point(94, 12);
-      _btnStop.Name = "_btnStop";
-      _btnStop.Size = new Size(75, 23);
-      _btnStop.TabIndex = 1;
-      _btnStop.Text = "Stop";
-      _btnStop.UseVisualStyleBackColor = true;
-      _btnStop.Click += BtnStop_ClickAsync;
+      BtnStop.Location = new Point(94, 12);
+      BtnStop.Name = "BtnStop";
+      BtnStop.Size = new Size(75, 23);
+      BtnStop.TabIndex = 1;
+      BtnStop.Text = "Stop";
+      BtnStop.UseVisualStyleBackColor = true;
+      BtnStop.Click += BtnStop_ClickAsync;
       // 
       // _preview
       // 
@@ -86,15 +87,15 @@ namespace VisionLedTest
       _preview.TabIndex = 2;
       _preview.TabStop = false;
       // 
-      // btnLoadTemplate
+      // BtnLoadTemplate
       // 
-      btnLoadTemplate.Location = new Point(175, 12);
-      btnLoadTemplate.Name = "btnLoadTemplate";
-      btnLoadTemplate.Size = new Size(93, 23);
-      btnLoadTemplate.TabIndex = 3;
-      btnLoadTemplate.Text = "Load Image";
-      btnLoadTemplate.UseVisualStyleBackColor = true;
-      btnLoadTemplate.Click += BtnLoadTemplate_Click;
+      BtnLoadTemplate.Location = new Point(175, 12);
+      BtnLoadTemplate.Name = "BtnLoadTemplate";
+      BtnLoadTemplate.Size = new Size(93, 23);
+      BtnLoadTemplate.TabIndex = 3;
+      BtnLoadTemplate.Text = "Load Image";
+      BtnLoadTemplate.UseVisualStyleBackColor = true;
+      BtnLoadTemplate.Click += BtnLoadTemplate_Click;
       // 
       // label1
       // 
@@ -105,43 +106,43 @@ namespace VisionLedTest
       label1.TabIndex = 4;
       label1.Text = "Cnt:";
       // 
-      // lblCount
+      // LblCount
       // 
-      lblCount.AutoSize = true;
-      lblCount.Location = new Point(341, 16);
-      lblCount.Name = "lblCount";
-      lblCount.Size = new Size(13, 15);
-      lblCount.TabIndex = 5;
-      lblCount.Text = "0";
+      LblCount.AutoSize = true;
+      LblCount.Location = new Point(341, 16);
+      LblCount.Name = "LblCount";
+      LblCount.Size = new Size(13, 15);
+      LblCount.TabIndex = 5;
+      LblCount.Text = "0";
       // 
-      // lblStatus
+      // LblStatus
       // 
-      lblStatus.AutoSize = true;
-      lblStatus.Location = new Point(371, 16);
-      lblStatus.Name = "lblStatus";
-      lblStatus.Size = new Size(35, 15);
-      lblStatus.TabIndex = 6;
-      lblStatus.Text = "(null)";
+      LblStatus.AutoSize = true;
+      LblStatus.Location = new Point(371, 16);
+      LblStatus.Name = "LblStatus";
+      LblStatus.Size = new Size(35, 15);
+      LblStatus.TabIndex = 6;
+      LblStatus.Text = "(null)";
       // 
-      // numBrightnessThreshold
+      // NumBrightnessThreshold
       // 
-      numBrightnessThreshold.Location = new Point(70, 70);
-      numBrightnessThreshold.Maximum = new decimal(new int[] { 255, 0, 0, 0 });
-      numBrightnessThreshold.Name = "numBrightnessThreshold";
-      numBrightnessThreshold.Size = new Size(53, 23);
-      numBrightnessThreshold.TabIndex = 7;
-      numBrightnessThreshold.Value = new decimal(new int[] { 250, 0, 0, 0 });
-      numBrightnessThreshold.ValueChanged += numBrightnessThreshold_ValueChanged;
+      NumBrightnessThreshold.Location = new Point(70, 70);
+      NumBrightnessThreshold.Maximum = new decimal(new int[] { 255, 0, 0, 0 });
+      NumBrightnessThreshold.Name = "NumBrightnessThreshold";
+      NumBrightnessThreshold.Size = new Size(53, 23);
+      NumBrightnessThreshold.TabIndex = 7;
+      NumBrightnessThreshold.Value = new decimal(new int[] { 250, 0, 0, 0 });
+      NumBrightnessThreshold.ValueChanged += NumBrightnessThreshold_ValueChanged;
       // 
-      // btnRefresh
+      // BtnRefresh
       // 
-      btnRefresh.Location = new Point(175, 41);
-      btnRefresh.Name = "btnRefresh";
-      btnRefresh.Size = new Size(125, 23);
-      btnRefresh.TabIndex = 8;
-      btnRefresh.Text = "Refresh (Alg2)";
-      btnRefresh.UseVisualStyleBackColor = true;
-      btnRefresh.Click += btnRefresh_Click;
+      BtnRefresh.Location = new Point(175, 41);
+      BtnRefresh.Name = "BtnRefresh";
+      BtnRefresh.Size = new Size(125, 23);
+      BtnRefresh.TabIndex = 8;
+      BtnRefresh.Text = "Refresh (Alg2)";
+      BtnRefresh.UseVisualStyleBackColor = true;
+      BtnRefresh.Click += btnRefresh_Click;
       // 
       // ThresholdHScroll
       // 
@@ -170,51 +171,52 @@ namespace VisionLedTest
       label3.TabIndex = 11;
       label3.Text = "Blob MIN:";
       // 
-      // numBlobMin
+      // NumBlobMin
       // 
-      numBlobMin.Increment = new decimal(new int[] { 5, 0, 0, 0 });
-      numBlobMin.Location = new Point(195, 70);
-      numBlobMin.Maximum = new decimal(new int[] { 1000, 0, 0, 0 });
-      numBlobMin.Name = "numBlobMin";
-      numBlobMin.Size = new Size(53, 23);
-      numBlobMin.TabIndex = 12;
-      numBlobMin.Value = new decimal(new int[] { 30, 0, 0, 0 });
-      numBlobMin.ValueChanged += numBlobMin_ValueChanged;
+      NumBlobMin.Increment = new decimal(new int[] { 5, 0, 0, 0 });
+      NumBlobMin.Location = new Point(195, 70);
+      NumBlobMin.Maximum = new decimal(new int[] { 1000, 0, 0, 0 });
+      NumBlobMin.Name = "NumBlobMin";
+      NumBlobMin.Size = new Size(53, 23);
+      NumBlobMin.TabIndex = 12;
+      NumBlobMin.Value = new decimal(new int[] { 30, 0, 0, 0 });
+      NumBlobMin.ValueChanged += NumBlobMin_ValueChanged;
       // 
-      // numBlobMax
+      // NumBlobMax
       // 
-      numBlobMax.Increment = new decimal(new int[] { 10, 0, 0, 0 });
-      numBlobMax.Location = new Point(323, 70);
-      numBlobMax.Maximum = new decimal(new int[] { 10000, 0, 0, 0 });
-      numBlobMax.Name = "numBlobMax";
-      numBlobMax.Size = new Size(53, 23);
-      numBlobMax.TabIndex = 13;
-      numBlobMax.Value = new decimal(new int[] { 8000, 0, 0, 0 });
-      numBlobMax.ValueChanged += numBlobMax_ValueChanged;
+      NumBlobMax.Increment = new decimal(new int[] { 10, 0, 0, 0 });
+      NumBlobMax.Location = new Point(323, 70);
+      NumBlobMax.Maximum = new decimal(new int[] { 10000, 0, 0, 0 });
+      NumBlobMax.Name = "NumBlobMax";
+      NumBlobMax.Size = new Size(53, 23);
+      NumBlobMax.TabIndex = 13;
+      NumBlobMax.Value = new decimal(new int[] { 8000, 0, 0, 0 });
+      NumBlobMax.ValueChanged += NumBlobMax_ValueChanged;
       // 
-      // btnImageRefresh
+      // BtnImageRefresh
       // 
-      btnImageRefresh.Location = new Point(274, 12);
-      btnImageRefresh.Name = "btnImageRefresh";
-      btnImageRefresh.Size = new Size(26, 23);
-      btnImageRefresh.TabIndex = 14;
-      btnImageRefresh.Text = "X";
-      btnImageRefresh.UseVisualStyleBackColor = true;
-      btnImageRefresh.Click += btnImageRefresh_Click;
+      BtnImageRefresh.Location = new Point(274, 12);
+      BtnImageRefresh.Name = "BtnImageRefresh";
+      BtnImageRefresh.Size = new Size(26, 23);
+      BtnImageRefresh.TabIndex = 14;
+      BtnImageRefresh.Text = "X";
+      BtnImageRefresh.UseVisualStyleBackColor = true;
+      BtnImageRefresh.Click += BtnImageRefresh_Click;
       // 
-      // cmboCamera
+      // CmbCamera
       // 
-      cmboCamera.Enabled = false;
-      cmboCamera.FormattingEnabled = true;
-      cmboCamera.Location = new Point(70, 41);
-      cmboCamera.Name = "cmboCamera";
-      cmboCamera.Size = new Size(99, 23);
-      cmboCamera.TabIndex = 15;
+      CmbCamera.DropDownStyle = ComboBoxStyle.DropDownList;
+      CmbCamera.FormattingEnabled = true;
+      CmbCamera.Items.AddRange(new object[] { "0", "1", "2", "3" });
+      CmbCamera.Location = new Point(70, 41);
+      CmbCamera.Name = "CmbCamera";
+      CmbCamera.Size = new Size(99, 23);
+      CmbCamera.TabIndex = 15;
+      CmbCamera.SelectedIndexChanged += CmbCamera_SelectedIndexChanged;
       // 
       // label4
       // 
       label4.AutoSize = true;
-      label4.Enabled = false;
       label4.Location = new Point(13, 44);
       label4.Name = "label4";
       label4.Size = new Size(51, 15);
@@ -248,63 +250,75 @@ namespace VisionLedTest
       BlobMaxScroll.TabIndex = 19;
       BlobMaxScroll.ValueChanged += BlobMaxScroll_ValueChanged;
       // 
+      // BtnGenerateGrid
+      // 
+      BtnGenerateGrid.Location = new Point(459, 40);
+      BtnGenerateGrid.Name = "BtnGenerateGrid";
+      BtnGenerateGrid.Size = new Size(75, 23);
+      BtnGenerateGrid.TabIndex = 20;
+      BtnGenerateGrid.Text = "Gen. Grid";
+      BtnGenerateGrid.UseVisualStyleBackColor = true;
+      BtnGenerateGrid.Click += BtnGenerateGrid_Click;
+      // 
       // Form1
       // 
       AutoScaleDimensions = new SizeF(7F, 15F);
       AutoScaleMode = AutoScaleMode.Font;
       ClientSize = new Size(596, 388);
+      Controls.Add(BtnGenerateGrid);
       Controls.Add(BlobMaxScroll);
       Controls.Add(BlobMinScroll);
       Controls.Add(label5);
       Controls.Add(label4);
-      Controls.Add(cmboCamera);
-      Controls.Add(btnImageRefresh);
-      Controls.Add(numBlobMax);
-      Controls.Add(numBlobMin);
+      Controls.Add(CmbCamera);
+      Controls.Add(BtnImageRefresh);
+      Controls.Add(NumBlobMax);
+      Controls.Add(NumBlobMin);
       Controls.Add(label3);
       Controls.Add(label2);
       Controls.Add(ThresholdHScroll);
-      Controls.Add(btnRefresh);
-      Controls.Add(numBrightnessThreshold);
-      Controls.Add(lblStatus);
-      Controls.Add(lblCount);
+      Controls.Add(BtnRefresh);
+      Controls.Add(NumBrightnessThreshold);
+      Controls.Add(LblStatus);
+      Controls.Add(LblCount);
       Controls.Add(label1);
-      Controls.Add(btnLoadTemplate);
+      Controls.Add(BtnLoadTemplate);
       Controls.Add(_preview);
-      Controls.Add(_btnStop);
-      Controls.Add(_btnStart);
+      Controls.Add(BtnStop);
+      Controls.Add(BtnStart);
       Name = "Form1";
       Text = "Supadupa LED Finder";
       Load += Form1_Load;
       ((System.ComponentModel.ISupportInitialize)_preview).EndInit();
-      ((System.ComponentModel.ISupportInitialize)numBrightnessThreshold).EndInit();
-      ((System.ComponentModel.ISupportInitialize)numBlobMin).EndInit();
-      ((System.ComponentModel.ISupportInitialize)numBlobMax).EndInit();
+      ((System.ComponentModel.ISupportInitialize)NumBrightnessThreshold).EndInit();
+      ((System.ComponentModel.ISupportInitialize)NumBlobMin).EndInit();
+      ((System.ComponentModel.ISupportInitialize)NumBlobMax).EndInit();
       ResumeLayout(false);
       PerformLayout();
     }
 
     #endregion
 
-    private Button _btnStart;
-    private Button _btnStop;
+    private Button BtnStart;
+    private Button BtnStop;
     private PictureBox _preview;
-    private Button btnLoadTemplate;
+    private Button BtnLoadTemplate;
     private Label label1;
-    private Label lblCount;
-    private Label lblStatus;
-    private NumericUpDown numBrightnessThreshold;
-    private Button btnRefresh;
+    private Label LblCount;
+    private Label LblStatus;
+    private NumericUpDown NumBrightnessThreshold;
+    private Button BtnRefresh;
     private HScrollBar ThresholdHScroll;
     private Label label2;
     private Label label3;
-    private NumericUpDown numBlobMin;
-    private NumericUpDown numBlobMax;
-    private Button btnImageRefresh;
-    private ComboBox cmboCamera;
+    private NumericUpDown NumBlobMin;
+    private NumericUpDown NumBlobMax;
+    private Button BtnImageRefresh;
+    private ComboBox CmbCamera;
     private Label label4;
     private Label label5;
     private HScrollBar BlobMinScroll;
     private HScrollBar BlobMaxScroll;
+    private Button BtnGenerateGrid;
   }
 }

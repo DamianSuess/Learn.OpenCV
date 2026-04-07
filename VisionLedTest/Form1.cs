@@ -53,9 +53,9 @@ public partial class Form1 : Form
 
     FormClosing += async (_, __) => await StopAsync();
 
-    numBrightnessThreshold.Value = _detector.BrightThreshold;
-    numBlobMax.Value = _detector.BlobAreaMax;
-    numBlobMin.Value = _detector.BlobAreaMin;
+    NumBrightnessThreshold.Value = _detector.BrightThreshold;
+    NumBlobMax.Value = _detector.BlobAreaMax;
+    NumBlobMin.Value = _detector.BlobAreaMin;
 
     ThresholdHScroll.Value = _detector.BrightThreshold;
     BlobMaxScroll.Value = _detector.BlobAreaMax;
@@ -63,17 +63,24 @@ public partial class Form1 : Form
 
     // Causes app to delay by 5sec on startup & not wired to Start/Stop
     ////_detector.GetCameraList();
+    CmbCamera.Items.Clear();
+    CmbCamera.Items.AddRange([0, 1, 2, 3]);
+    CmbCamera.SelectedIndex = 0;
   }
 
   private void Form1_Load(object sender, EventArgs e)
   {
   }
 
+  #region User Controls - Start/Stop/Load
+
   private async void BtnStart_ClickAsync(object sender, EventArgs e)
   {
     _imageFileName = null;
     await StartAsync();
-    btnLoadTemplate.Enabled = false;
+
+    BtnLoadTemplate.Enabled = false;
+    CmbCamera.Enabled = false;
   }
 
   private async void BtnStop_ClickAsync(object sender, EventArgs e)
@@ -81,7 +88,8 @@ public partial class Form1 : Form
     _imageFileName = null;
 
     await StopAsync();
-    btnLoadTemplate.Enabled = true;
+    BtnLoadTemplate.Enabled = true;
+    CmbCamera.Enabled = true;
   }
 
   private void BtnLoadTemplate_Click(object sender, EventArgs e)
@@ -89,7 +97,7 @@ public partial class Form1 : Form
     string templatePath;
 
     // Don't do this, use a method with a parameter
-    if (sender as Button == btnImageRefresh && _imageFileName is not null)
+    if (sender as Button == BtnImageRefresh && _imageFileName is not null)
     {
       templatePath = _imageFileName;
     }
@@ -154,6 +162,8 @@ public partial class Form1 : Form
 
     AnalyzeStaticImage(grayMat);
   }
+
+  #endregion User Controls - Start/Stop/Load
 
   private void AnalyzeBinary(Mat frame)
   {
@@ -254,8 +264,8 @@ public partial class Form1 : Form
 
       _ledPositions = centers;
 
-      lblCount.Text = _ledPositions.Count.ToString();
-      lblStatus.Text = $"Template loaded: {System.IO.Path.GetFileName(_imageFileName)}; LEDs found: {_ledPositions.Count}";
+      LblCount.Text = _ledPositions.Count.ToString();
+      LblStatus.Text = $"Template loaded: {System.IO.Path.GetFileName(_imageFileName)}; LEDs found: {_ledPositions.Count}";
     }
     catch (Exception ex)
     {
@@ -303,7 +313,7 @@ public partial class Form1 : Form
     {
       // TODO: Use method calls!!! Not cheap hax0r skr1p7 k!ddy 1997 workarounds
       // Pass, 'btnImageRefresh' object so the image analyzer thinks Refresh called it
-      btnImageRefresh_Click(btnImageRefresh, e);
+      BtnImageRefresh_Click(BtnImageRefresh, e);
     }
   }
 
@@ -338,7 +348,7 @@ public partial class Form1 : Form
     if (_captureTask is not null && _captureTask.IsCompleted)
       return;
 
-    _capture = new VideoCapture(_detector.CameraIndex);
+    _capture = new VideoCapture(1);
     if (!_capture.IsOpened())
     {
       MessageBox.Show("Could not open the webcam", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -352,8 +362,8 @@ public partial class Form1 : Form
     _capture.FrameHeight = 720;
 
     _cts = new CancellationTokenSource();
-    _btnStart.Enabled = false;
-    _btnStop.Enabled = true;
+    BtnStart.Enabled = false;
+    BtnStop.Enabled = true;
 
     _captureTask = Task.Run(() => CaptureLoop(_cts.Token));
     await Task.CompletedTask;
@@ -386,8 +396,8 @@ public partial class Form1 : Form
 
       _captureTask = null;
 
-      _btnStart.Enabled = true;
-      _btnStop.Enabled = false;
+      BtnStart.Enabled = true;
+      BtnStop.Enabled = false;
 
       // Clear any drag overlay
       _isDragging = false;
@@ -419,12 +429,12 @@ public partial class Form1 : Form
 
       void UpdateStatus()
       {
-        lblCount.Text = results.Count.ToString();
-        lblStatus.Text = $"LEDs found: {results.Count}";
+        LblCount.Text = results.Count.ToString();
+        LblStatus.Text = $"LEDs found: {results.Count}";
       }
 
-      if (lblCount.InvokeRequired)
-        lblCount.BeginInvoke(new Action(() => UpdateStatus()));
+      if (LblCount.InvokeRequired)
+        LblCount.BeginInvoke(new Action(() => UpdateStatus()));
       else
         UpdateStatus();
 
@@ -532,36 +542,38 @@ public partial class Form1 : Form
     return new Rectangle(offsetX, offsetY, drawW, drawH);
   }
 
+  #region User Controls - Adjusters
+
   private void ThresholdHScroll_Scroll(object sender, ScrollEventArgs e)
   {
     ////_brightThreshold = ThresholdHScroll.Value;
     _detector.BrightThreshold = ThresholdHScroll.Value;
-    numBrightnessThreshold.Value = ThresholdHScroll.Value;
+    NumBrightnessThreshold.Value = ThresholdHScroll.Value;
   }
 
-  private void numBrightnessThreshold_ValueChanged(object sender, EventArgs e)
+  private void NumBrightnessThreshold_ValueChanged(object sender, EventArgs e)
   {
     ////_brightThreshold = (int)numBrightnessThreshold.Value;
-    _detector.BrightThreshold = (int)numBrightnessThreshold.Value;
+    _detector.BrightThreshold = (int)NumBrightnessThreshold.Value;
 
     // Auto refresh loaded template
     if (_imageFileName is not null)
       btnRefresh_Click(sender, e);
   }
 
-  private void numBlobMax_ValueChanged(object sender, EventArgs e)
+  private void NumBlobMax_ValueChanged(object sender, EventArgs e)
   {
     ////_maxBlobArea = (int)numBlobMax.Value;
-    _detector.BlobAreaMax = (int)numBlobMax.Value;
+    _detector.BlobAreaMax = (int)NumBlobMax.Value;
   }
 
-  private void numBlobMin_ValueChanged(object sender, EventArgs e)
+  private void NumBlobMin_ValueChanged(object sender, EventArgs e)
   {
     ////_minBlobArea = (int)numBlobMin.Value;
-    _detector.BlobAreaMin = (int)numBlobMin.Value;
+    _detector.BlobAreaMin = (int)NumBlobMin.Value;
   }
 
-  private void btnImageRefresh_Click(object sender, EventArgs e)
+  private void BtnImageRefresh_Click(object sender, EventArgs e)
   {
     BtnLoadTemplate_Click(sender, e);
   }
@@ -570,13 +582,34 @@ public partial class Form1 : Form
   {
     ////_maxBlobArea = BlobMaxScroll.Value;
     _detector.BlobAreaMax = BlobMaxScroll.Value;
-    numBlobMax.Value = BlobMaxScroll.Value;
+    NumBlobMax.Value = BlobMaxScroll.Value;
   }
 
   private void BlobMinScroll_ValueChanged(object sender, EventArgs e)
   {
     ////_minBlobArea = BlobMinScroll.Value;
     _detector.BlobAreaMin = BlobMinScroll.Value;
-    numBlobMin.Value = BlobMinScroll.Value;
+    NumBlobMin.Value = BlobMinScroll.Value;
   }
+
+  private void BtnGenerateGrid_Click(object sender, EventArgs e)
+  {
+    int cols = 5;
+    int rows = 3;
+
+    var grid = RoiManager.GenerateGrid(
+      rows,
+      cols,
+      _detector.LastFrameWidth,
+      _detector.LastFrameHeight);
+
+    _detector.RoiManager.SetRois(grid);
+  }
+
+  private void CmbCamera_SelectedIndexChanged(object sender, EventArgs e)
+  {
+    _detector.CameraIndex = CmbCamera.SelectedIndex;
+  }
+
+  #endregion User Controls - Adjusters
 }
